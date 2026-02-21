@@ -4,6 +4,14 @@ Un outil communautaire de [VOTE] décentralisé sur la blockchain Alephium.
 
 ---
 
+
+
+
+## 🚀 Évolution du Projet (Hackathon)
+- **V1 (Initial) :** Système de forum et de votes simples sur la blockchain.
+- **V2 (Actuelle) :** Pivot vers un système complet de Crowdfunding (Financement participatif) avec gestion du temps (TimeLocks), remboursements automatiques en cas d'échec, et retraits sécurisés pour les créateurs.
+
+
 ## 💡 LE PROJET
 
 [Une manière de s'exprimer de manière simple et rapide adapter à Alephium].

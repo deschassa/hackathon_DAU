@@ -1,4 +1,7 @@
 import { Configuration } from '@alephium/cli'
+import { config } from 'dotenv'
+
+config()
 
 const configuration: Configuration = {
   networks: {

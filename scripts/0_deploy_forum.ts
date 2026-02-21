@@ -6,7 +6,7 @@ const deployScript: DeployFunction = async (deployer: Deployer): Promise<void> =
 
   const result = await deployer.deployContract(ForumSondage, {
     initialFields: {
-      totalSondages: 0n 
+      totalProjets: 0n 
     }
   })
   

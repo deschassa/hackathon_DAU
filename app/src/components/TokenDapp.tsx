@@ -1,163 +1,200 @@
 'use client'
 
-import React, { useState, useEffect } from 'react' // 👈 AJOUT DE useEffect
+import React, { useState, useEffect } from 'react'
 import { useWallet } from '@alephium/web3-react'
-// 👈 AJOUT DE hexToString pour traduire le langage blockchain en français
 import { stringToHex, hexToString, web3, NodeProvider, groupOfAddress, ONE_ALPH } from '@alephium/web3'
-import { ForumSondage } from '../../../artifacts/ts'
+import { ForumSondage } from '../../../artifacts/ts' 
 
 export const TokenDapp = () => {
-  // 🚨 REMPLACE PAR TA TOUTE NOUVELLE ADRESSE :
-  const CONTRACT_ADDRESS = "xRLgxuP211rUVprGbTdsJJtzSi6gcwLmKYCk2gER3CKq" 
+  // 🚨 REMPLACE PAR TA NOUVELLE ADRESSE :
+  const CONTRACT_ADDRESS = "24o2SiaDyS4bNH7H8HE2oqNdhhncffp22XwZR8C6457uq" 
   const contractGroup = groupOfAddress(CONTRACT_ADDRESS)
 
   const { signer, account } = useWallet() 
   const [nouveauTitre, setNouveauTitre] = useState('')
-  const [sondages, setSondages] = useState<{id: number, titre: string, votes: number}[]>([])
+  const [nouvelObjectif, setNouvelObjectif] = useState('') 
   
-  // Petit bonus visuel pour montrer que ça charge
+  // NOUVEAU : Un état pour gérer le montant libre de chaque projet
+  const [montantsDon, setMontantsDon] = useState<{ [key: number]: string }>({})
+  
+  const [projets, setProjets] = useState<any[]>([])
   const [chargement, setChargement] = useState(false)
+  const [tempsActuel, setTempsActuel] = useState(Date.now())
 
-  // ==========================================
-  // 👓 NOUVEAU : LA FONCTION QUI LIT LA BLOCKCHAIN
-  // ==========================================
-  const chargerSondages = async () => {
+  // Met à jour l'horloge interne pour les comptes à rebours
+  useEffect(() => {
+    const timer = setInterval(() => setTempsActuel(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const chargerProjets = async () => {
     setChargement(true)
     const node = new NodeProvider('https://wallet-v20.testnet.alephium.org')
     web3.setCurrentNodeProvider(node)
 
     try {
-      // 1. On demande au contrat : "Combien as-tu de sondages en stock ?"
-      const totalResult = await ForumSondage.at(CONTRACT_ADDRESS).view.getTotalSondages()
+      const totalResult = await ForumSondage.at(CONTRACT_ADDRESS).view.getTotalProjets()
       const total = Number(totalResult.returns)
-      
-      let sondagesCharges = []
+      let projetsCharges = []
 
-      // 2. On boucle pour lire le titre et les votes de CHAQUE sondage
       for(let i = 0; i < total; i++) {
-        const titreResult = await ForumSondage.at(CONTRACT_ADDRESS).view.getTitre({ args: { id: BigInt(i) } })
-        const votesResult = await ForumSondage.at(CONTRACT_ADDRESS).view.getVotes({ args: { id: BigInt(i) } })
+        const titreRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getTitre({ args: { id: BigInt(i) } })
+        const objRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getObjectif({ args: { id: BigInt(i) } })
+        const fondRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getFondsRecoltes({ args: { id: BigInt(i) } })
+        const deadRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getDeadline({ args: { id: BigInt(i) } })
+        const clotureRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getEstCloture({ args: { id: BigInt(i) } })
         
-        sondagesCharges.push({
+        projetsCharges.push({
           id: i,
-          titre: hexToString(titreResult.returns), // On traduit l'Hexadécimal en texte
-          votes: Number(votesResult.returns)
+          titre: hexToString(titreRes.returns),
+          objectif: Number(objRes.returns) / 1e18,
+          recolte: Number(fondRes.returns) / 1e18,
+          deadline: Number(deadRes.returns),
+          estCloture: clotureRes.returns
         })
       }
-      
-      // 3. On met à jour l'affichage avec l'historique officiel !
-      setSondages(sondagesCharges)
-    } catch (error) {
-      console.error("Erreur lors de la lecture sur la blockchain", error)
-    }
+      setProjets(projetsCharges)
+    } catch (error) { console.error(error) }
     setChargement(false)
   }
 
-  // Ce 'useEffect' lance la fonction 'chargerSondages' TOUT SEUL dès que la page s'ouvre !
-  useEffect(() => {
-    chargerSondages()
-  }, []) // Les crochets vides veulent dire : "Fais-le une seule fois au démarrage"
+  useEffect(() => { chargerProjets() }, [])
 
   // ==========================================
-  // FONCTIONS D'ÉCRITURE (Créer et Voter)
+  // LES TRANSACTIONS
   // ==========================================
-  const publierSondage = async () => {
-      if (!signer || !account) return alert("⚠️ Connecte d'abord ton wallet !")
-      if (account.group !== contractGroup) return alert(`❌ ERREUR D'UNIVERS : Passe sur le Groupe ${contractGroup}.`)
-
+  const publierProjet = async () => {
+      if (!signer || !account) return alert("Connecte ton wallet !")
       const node = new NodeProvider('https://wallet-v20.testnet.alephium.org')
       web3.setCurrentNodeProvider(node)
 
       try {
-        const resultat = await ForumSondage.at(CONTRACT_ADDRESS).transact.creerSondage({
+        const objectifEnAttoAlph = BigInt(nouvelObjectif) * ONE_ALPH
+        await ForumSondage.at(CONTRACT_ADDRESS).transact.creerProjet({
           signer: signer,
-          args: { titre: stringToHex(nouveauTitre) },
+          args: { titre: stringToHex(nouveauTitre), objectif: objectifEnAttoAlph },
           attoAlphAmount: ONE_ALPH / 10n 
         })
-        alert(`🎉 SONDAGE CRÉÉ !\nPatiente 30s puis clique sur "Rafraîchir" pour le voir !`)
-        setNouveauTitre('') 
-      } catch (error) {
-        console.error(error)
-        alert("❌ Oups, la transaction a échoué.")
-      }
-    }
+        alert(`🎉 PROJET CRÉÉ ! Validité : 5 minutes.`)
+        setNouveauTitre('') ; setNouvelObjectif('')
+      } catch (e) { console.error(e); alert("Erreur lors de la création.") }
+  }
 
-  const voterPourSondage = async (sondageId: number) => {
-    if (!signer || !account) return alert("⚠️ Connecte d'abord ton wallet !")
+  const financerProjet = async (projetId: number) => {
+    if (!signer || !account) return alert("Connecte ton wallet !")
+    const montantSaisi = montantsDon[projetId]
+    if (!montantSaisi || Number(montantSaisi) <= 0) return alert("Saisis un montant valide en ALPH !")
 
     const node = new NodeProvider('https://wallet-v20.testnet.alephium.org')
     web3.setCurrentNodeProvider(node)
 
     try {
-      const resultat = await ForumSondage.at(CONTRACT_ADDRESS).transact.voterPour({
+      const montantEnAttoAlph = BigInt(Math.floor(Number(montantSaisi) * 1e18))
+      await ForumSondage.at(CONTRACT_ADDRESS).transact.financerProjet({
         signer: signer,
-        args: { id: BigInt(sondageId) },
-        attoAlphAmount: ONE_ALPH / 10n 
+        args: { id: BigInt(projetId), montant: montantEnAttoAlph },
+        attoAlphAmount: montantEnAttoAlph + (ONE_ALPH / 10n) 
       })
-      alert(`🗳️ A VOTÉ !\nPatiente 30s puis clique sur "Rafraîchir" pour voir le score monter !`)
-    } catch (error) {
-      console.error(error)
-      alert("❌ Oups, le vote a échoué.")
-    }
+      alert(`💸 Don de ${montantSaisi} ALPH envoyé !`)
+    } catch (e) { console.error(e); alert("Erreur de transaction.") }
+  }
+
+  const retirerFonds = async (projetId: number) => {
+    if (!signer) return
+    const node = new NodeProvider('https://wallet-v20.testnet.alephium.org')
+    web3.setCurrentNodeProvider(node)
+    try {
+      await ForumSondage.at(CONTRACT_ADDRESS).transact.retirerFonds({
+        signer: signer, args: { id: BigInt(projetId) }, attoAlphAmount: ONE_ALPH / 10n
+      })
+      alert(`🏆 SUCCÈS ! Les fonds ont été virés sur ton wallet !`)
+    } catch (e) { alert("Erreur : Seul le créateur peut retirer, et l'objectif doit être atteint.") }
+  }
+
+  const demanderRemboursement = async (projetId: number) => {
+    if (!signer) return
+    const node = new NodeProvider('https://wallet-v20.testnet.alephium.org')
+    web3.setCurrentNodeProvider(node)
+    try {
+      await ForumSondage.at(CONTRACT_ADDRESS).transact.rembourser({
+        signer: signer, args: { id: BigInt(projetId) }, attoAlphAmount: ONE_ALPH / 10n
+      })
+      alert(`🛡️ REMBOURSÉ ! Ton argent est de retour sur ton wallet.`)
+    } catch (e) { alert("Erreur : Tu n'as rien donné, ou le temps n'est pas encore écoulé.") }
   }
 
   // ==========================================
-  // L'AFFICHAGE DU SITE
+  // L'AFFICHAGE
   // ==========================================
   return (
     <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '12px', fontFamily: 'sans-serif' }}>
       
-      <div style={{ padding: '15px', background: '#fff3cd', color: '#856404', borderRadius: '8px', marginBottom: '20px', border: '1px solid #ffeeba' }}>
-        <h3 style={{ margin: '0 0 10px 0' }}>🕵️ Scanner de Sharding</h3>
-        <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '16px' }}>
-          <li>Univers du Contrat : <strong>Groupe {contractGroup}</strong></li>
-          <li>Univers de votre Portefeuille : <strong>Groupe {account ? account.group : 'Non connecté'}</strong></li>
-        </ul>
-      </div>
-
-      <h2 style={{ borderBottom: '2px solid #e9ecef', paddingBottom: '10px' }}>📢 Forum des Initiatives</h2>
-      
       <div style={{ marginTop: '20px', padding: '20px', background: 'white', borderRadius: '8px', border: '1px solid #dee2e6', marginBottom: '30px' }}>
-        <h3>Créer un nouveau sondage</h3>
+        <h3>🚀 Lancer un nouveau projet (Durée : 5 minutes)</h3>
         <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-          <input 
-            type="text" 
-            placeholder="Ex: Faut-il construire un Kickstarter Web3 ?" 
-            value={nouveauTitre}
-            onChange={(e) => setNouveauTitre(e.target.value)}
-            style={{ flex: 1, padding: '12px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '16px' }}
-          />
-          <button onClick={publierSondage} style={{ padding: '12px 24px', background: '#0070f3', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-            Publier sur la Blockchain
-          </button>
+          <input type="text" placeholder="Nom du projet" value={nouveauTitre} onChange={(e) => setNouveauTitre(e.target.value)} style={{ flex: 2, padding: '10px' }} />
+          <input type="number" placeholder="Objectif (ALPH)" value={nouvelObjectif} onChange={(e) => setNouvelObjectif(e.target.value)} style={{ flex: 1, padding: '10px' }} />
+          <button onClick={publierProjet} style={{ padding: '10px 20px', background: '#0070f3', color: 'white', cursor: 'pointer' }}>Créer</button>
         </div>
       </div>
 
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3>Initiatives en cours</h3>
-          {/* Un petit bouton pour mettre à jour la page sans faire F5 */}
-          <button onClick={chargerSondages} style={{ padding: '8px 16px', background: '#6c757d', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
-            🔄 Rafraîchir les données
-          </button>
+          <h3>Projets en cours</h3>
+          <button onClick={chargerProjets} style={{ padding: '8px 16px', cursor: 'pointer' }}>🔄 Actualiser</button>
         </div>
 
-        {chargement ? (
-          <p style={{ color: '#0070f3', fontWeight: 'bold' }}>⏳ Connexion à la blockchain en cours...</p>
-        ) : sondages.length === 0 ? (
-           <p style={{ color: '#6c757d', fontStyle: 'italic' }}>Aucun sondage pour le moment. Soyez le premier !</p>
-        ) : (
-          sondages.map((sondage) => (
-            <div key={sondage.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', padding: '20px', marginBottom: '15px', marginTop: '15px', borderRadius: '8px', borderLeft: '6px solid #10b981', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-              <span style={{ fontSize: '18px', fontWeight: '500' }}>{sondage.titre}</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                <span style={{ fontSize: '16px', color: '#6c757d', fontWeight: 'bold' }}>Votes: {sondage.votes}</span>
-                <button onClick={() => voterPourSondage(sondage.id)} style={{ padding: '10px 20px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s' }}>
-                  Voter POUR (+1)
-                </button>
+        {chargement ? <p>⏳ Chargement...</p> : (
+          projets.map((projet) => {
+            const tempsRestant = Math.max(0, Math.floor((projet.deadline - tempsActuel) / 1000))
+            const estFini = tempsRestant === 0
+            const objectifAtteint = projet.recolte >= projet.objectif
+
+            return (
+              <div key={projet.id} style={{ background: 'white', padding: '20px', marginBottom: '15px', marginTop: '15px', borderRadius: '8px', borderLeft: projet.estCloture ? '6px solid #6c757d' : '6px solid #10b981', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{projet.titre}</div>
+                  
+                  {projet.estCloture ? (
+                    <span style={{ color: '#6c757d', fontWeight: 'bold' }}>🔒 CAISSE FERMÉE (Fonds retirés)</span>
+                  ) : (
+                    <span style={{ color: estFini ? 'red' : '#f59e0b', fontWeight: 'bold' }}>
+                      {estFini ? '⏳ Temps écoulé' : `⏱️ Reste : ${tempsRestant} s`}
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ margin: '15px 0' }}>
+                  <strong>{projet.recolte} ALPH</strong> / {projet.objectif} ALPH
+                  <div style={{ width: '100%', background: '#e9ecef', height: '8px', borderRadius: '4px', marginTop: '8px' }}>
+                    <div style={{ width: `${Math.min((projet.recolte / projet.objectif) * 100, 100)}%`, background: objectifAtteint ? '#10b981' : '#0070f3', height: '100%' }}></div>
+                  </div>
+                </div>
+
+                {!projet.estCloture && (
+                  <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginTop: '20px' }}>
+                    {/* SI LE TEMPS N'EST PAS ÉCOULÉ : ON PEUT DONNER */}
+                    {!estFini && (
+                      <div style={{ display: 'flex', gap: '5px' }}>
+                        <input type="number" placeholder="Montant" value={montantsDon[projet.id] || ''} onChange={(e) => setMontantsDon({...montantsDon, [projet.id]: e.target.value})} style={{ padding: '8px', width: '100px' }} />
+                        <button onClick={() => financerProjet(projet.id)} style={{ background: '#0070f3', color: 'white', padding: '8px 16px', border: 'none', cursor: 'pointer' }}>Financer</button>
+                      </div>
+                    )}
+
+                    {/* SI OBJECTIF ATTEINT : LE CRÉATEUR PEUT RETIRER */}
+                    {objectifAtteint && (
+                       <button onClick={() => retirerFonds(projet.id)} style={{ background: '#10b981', color: 'white', padding: '8px 16px', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>🏆 Retirer les fonds</button>
+                    )}
+
+                    {/* SI ÉCHEC ET TEMPS ÉCOULÉ : LES DONATEURS PEUVENT ÊTRE REMBOURSÉS */}
+                    {estFini && !objectifAtteint && (
+                      <button onClick={() => demanderRemboursement(projet.id)} style={{ background: '#ef4444', color: 'white', padding: '8px 16px', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>🛡️ Demander remboursement</button>
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
-          ))
+            )
+          })
         )}
       </div>
     </div>
