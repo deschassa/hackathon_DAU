@@ -1,53 +1,63 @@
 Contract ForumSondage(
     mut totalProjets: U256
 ) {
+    // --- VARIABLES DE BASE ---
     mapping[U256, ByteVec] titres
     mapping[U256, ByteVec] descriptions 
     mapping[U256, ByteVec] liens        
-    mapping[U256, ByteVec] hashtags     // 🆕 Pour le tri !
+    mapping[U256, ByteVec] hashtags     
     mapping[U256, U256] objectifs
     mapping[U256, U256] fondsRecoltes
     mapping[U256, Address] createurs
     mapping[U256, U256] deadlines       
-    mapping[U256, Bool] estCloture
     mapping[ByteVec, U256] donsParDonateur 
 
-    event NouveauProjet(id: U256, createur: Address, titre: ByteVec, objectif: U256)
-    event DonRecu(id: U256, donateur: Address, montant: U256)
-    event FondsRetires(id: U256, createur: Address, montant: U256)
-    event Remboursement(id: U256, donateur: Address, montant: U256)
+    // --- 🆕 NOUVELLES VARIABLES (MILESTONES & SÉCURITÉ) ---
+    mapping[U256, Bool] estAnnule           // 🚩 Si le créateur abandonne
+    mapping[U256, U256] phasesRetrait       // 🏆 0 = Rien, 1 = 50% retirés, 2 = 100% retirés
+    mapping[U256, U256] notesPonderees      // ⭐ Somme des (Montant * Note)
+    mapping[ByteVec, Bool] aVote            // 🗳️ Empêche le double vote
 
+    // --- EVENTS ---
+    event NouveauProjet(id: U256, createur: Address, titre: ByteVec)
+    event DonRecu(id: U256, donateur: Address, montant: U256)
+    event PhaseDebloquee(id: U256, phase: U256, montant: U256)
+    event ProjetAnnule(id: U256)
+    event VoteEnregistre(id: U256, donateur: Address, note: U256)
+
+    // ==========================================
+    // ✍️ 1. CRÉATION
+    // ==========================================
     @using(updateFields = true, checkExternalCaller = false, preapprovedAssets = true)
-    pub fn creerProjet(
-        titre: ByteVec, 
-        description: ByteVec,
-        liensProjet: ByteVec,
-        tags: ByteVec,          // 🆕 ex: "#web3 #gaming"
-        objectif: U256,
-        dureeEnMs: U256
-    ) -> () {
+    pub fn creerProjet(titre: ByteVec, description: ByteVec, liensProjet: ByteVec, tags: ByteVec, objectif: U256, dureeEnMs: U256) -> () {
         let id = totalProjets
         titres.insert!(id, titre)
         descriptions.insert!(id, description)
         liens.insert!(id, liensProjet)
-        hashtags.insert!(id, tags) // 🆕
+        hashtags.insert!(id, tags)
         objectifs.insert!(id, objectif)
         fondsRecoltes.insert!(id, 0) 
         createurs.insert!(id, callerAddress!())
+        deadlines.insert!(id, blockTimeStamp!() + dureeEnMs)
         
-        let deadline = blockTimeStamp!() + dureeEnMs 
-        deadlines.insert!(id, deadline)
-        estCloture.insert!(id, false)
+        // Initialisation de la sécurité
+        estAnnule.insert!(id, false)
+        phasesRetrait.insert!(id, 0)
+        notesPonderees.insert!(id, 0)
         
         totalProjets = totalProjets + 1
-        emit NouveauProjet(id, callerAddress!(), titre, objectif)
+        emit NouveauProjet(id, callerAddress!(), titre)
     }
 
+    // ==========================================
+    // 💸 2. FINANCEMENT
+    // ==========================================
     @using(updateFields = true, checkExternalCaller = false, preapprovedAssets = true, assetsInContract = true)
     pub fn financerProjet(id: U256, montant: U256) -> () {
         assert!(id < totalProjets, 0) 
-        assert!(blockTimeStamp!() < deadlines[id], 1) 
-        assert!(estCloture[id] == false, 2) 
+        assert!(blockTimeStamp!() < deadlines[id], 1) // ❌ Temps écoulé
+        assert!(estAnnule[id] == false, 2) // ❌ Projet annulé
+        assert!(phasesRetrait[id] == 0, 3) // ❌ Phase 1 déjà entamée, trop tard pour donner
         
         transferTokenToSelf!(callerAddress!(), ALPH, montant)
         fondsRecoltes[id] = fondsRecoltes[id] + montant
@@ -58,39 +68,94 @@ Contract ForumSondage(
         } else {
             donsParDonateur.insert!(cleRecu, montant)
         }
-
         emit DonRecu(id, callerAddress!(), montant)
     }
 
+    // ==========================================
+    // ⭐ 3. GOUVERNANCE : LE VOTE DES INVESTISSEURS
+    // ==========================================
+    @using(updateFields = true, checkExternalCaller = false)
+    pub fn voterPourPhaseDeux(id: U256, note: U256) -> () {
+        assert!(id < totalProjets, 0)
+        assert!(phasesRetrait[id] == 1, 4) // ❌ Le vote n'est ouvert qu'après la Phase 1
+        assert!(note >= 1 && note <= 5, 5) // ❌ La note doit être entre 1 et 5
+        
+        let cleRecu = blake2b!(toByteVec!(id) ++ toByteVec!(callerAddress!()))
+        assert!(donsParDonateur.contains!(cleRecu), 6) // ❌ Tu n'es pas investisseur
+        assert!(!aVote.contains!(cleRecu), 7) // ❌ Tu as déjà voté
+        
+        aVote.insert!(cleRecu, true)
+        
+        // Pondération : Montant investi * Note
+        let poidsVote = donsParDonateur[cleRecu] * note
+        notesPonderees[id] = notesPonderees[id] + poidsVote
+        
+        emit VoteEnregistre(id, callerAddress!(), note)
+    }
+
+    // ==========================================
+    // 🏆 4. LE RETRAIT EN DEUX TEMPS (MILESTONES)
+    // ==========================================
     @using(updateFields = true, checkExternalCaller = false, assetsInContract = true)
     pub fn retirerFonds(id: U256) -> () {
-        assert!(id < totalProjets, 0)
-        assert!(estCloture[id] == false, 2) 
-        assert!(fondsRecoltes[id] >= objectifs[id], 3) 
-
-        let montant = fondsRecoltes[id]
-        estCloture[id] = true 
+        assert!(callerAddress!() == createurs[id], 8) // ❌ Seul le créateur retire
+        assert!(estAnnule[id] == false, 2)
+        assert!(fondsRecoltes[id] >= objectifs[id], 9) // ❌ Objectif non atteint
         
-        transferTokenFromSelf!(createurs[id], ALPH, montant)
-        emit FondsRetires(id, createurs[id], montant)
+        let phaseActuelle = phasesRetrait[id]
+        let moitieFonds = fondsRecoltes[id] / 2
+
+        if (phaseActuelle == 0) {
+            // RETRAIT PHASE 1 : On donne 50%
+            phasesRetrait[id] = 1
+            transferTokenFromSelf!(createurs[id], ALPH, moitieFonds)
+            emit PhaseDebloquee(id, 1, moitieFonds)
+        } else if (phaseActuelle == 1) {
+            // RETRAIT PHASE 2 : Vérification de la moyenne des votes (>= 3/5)
+            let scoreRequis = fondsRecoltes[id] * 3 
+            assert!(notesPonderees[id] >= scoreRequis, 10) // ❌ Note moyenne insuffisante (< 3/5)
+            
+            phasesRetrait[id] = 2
+            transferTokenFromSelf!(createurs[id], ALPH, moitieFonds)
+            emit PhaseDebloquee(id, 2, moitieFonds)
+        } else {
+            assert!(false, 11) // ❌ Tout a déjà été retiré
+        }
+    }
+
+    // ==========================================
+    // 🛑 5. SÉCURITÉ : ANNULATION & REMBOURSEMENT
+    // ==========================================
+    @using(updateFields = true, checkExternalCaller = false)
+    pub fn annulerProjet(id: U256) -> () {
+        assert!(callerAddress!() == createurs[id], 8)
+        assert!(phasesRetrait[id] < 2, 12) // Impossible d'annuler si tout est retiré
+        estAnnule[id] = true
+        emit ProjetAnnule(id)
     }
 
     @using(updateFields = true, checkExternalCaller = false, assetsInContract = true)
     pub fn rembourser(id: U256) -> () {
         assert!(id < totalProjets, 0)
-        assert!(blockTimeStamp!() >= deadlines[id], 4) 
-        assert!(fondsRecoltes[id] < objectifs[id], 5) 
+        
+        // On peut rembourser SI le projet est annulé OU SI (le temps est écoulé ET l'objectif a raté)
+        let tempsEcoule = blockTimeStamp!() >= deadlines[id]
+        let objectifRate = fondsRecoltes[id] < objectifs[id]
+        assert!(estAnnule[id] || (tempsEcoule && objectifRate), 13) 
         
         let cleRecu = blake2b!(toByteVec!(id) ++ toByteVec!(callerAddress!()))
-        assert!(donsParDonateur.contains!(cleRecu), 6) 
+        assert!(donsParDonateur.contains!(cleRecu), 6)
         
-        let montantARembourser = donsParDonateur[cleRecu]
-        assert!(montantARembourser > 0, 7) 
+        let mut montantARembourser = donsParDonateur[cleRecu]
+        assert!(montantARembourser > 0, 14) // ❌ Déjà remboursé
         
-        donsParDonateur[cleRecu] = 0 
+        // Si le créateur a déjà pris la Phase 1 (50%), on ne peut rendre que les 50% restants
+        if (phasesRetrait[id] == 1) {
+            montantARembourser = montantARembourser / 2
+        }
         
+        donsParDonateur[cleRecu] = 0 // On déchire le reçu
         transferTokenFromSelf!(callerAddress!(), ALPH, montantARembourser)
-        emit Remboursement(id, callerAddress!(), montantARembourser)
     }
 
     // --- GETTERS ---
@@ -100,7 +165,8 @@ Contract ForumSondage(
     pub fn getFondsRecoltes(id: U256) -> U256 { return fondsRecoltes[id] }
     pub fn getDescription(id: U256) -> ByteVec { return descriptions[id] }
     pub fn getLiens(id: U256) -> ByteVec { return liens[id] }
-    pub fn getHashtags(id: U256) -> ByteVec { return hashtags[id] } // 🆕
+    pub fn getHashtags(id: U256) -> ByteVec { return hashtags[id] } 
     pub fn getDeadline(id: U256) -> U256 { return deadlines[id] }
-    pub fn getEstCloture(id: U256) -> Bool { return estCloture[id] }
+    pub fn getEstAnnule(id: U256) -> Bool { return estAnnule[id] } // 🆕
+    pub fn getPhaseRetrait(id: U256) -> U256 { return phasesRetrait[id] } // 🆕
 }
