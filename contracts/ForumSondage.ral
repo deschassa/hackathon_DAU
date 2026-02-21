@@ -4,6 +4,7 @@ Contract ForumSondage(
     mapping[U256, ByteVec] titres
     mapping[U256, ByteVec] descriptions 
     mapping[U256, ByteVec] liens        
+    mapping[U256, ByteVec] hashtags     // 🆕 Pour le tri !
     mapping[U256, U256] objectifs
     mapping[U256, U256] fondsRecoltes
     mapping[U256, Address] createurs
@@ -16,14 +17,12 @@ Contract ForumSondage(
     event FondsRetires(id: U256, createur: Address, montant: U256)
     event Remboursement(id: U256, donateur: Address, montant: U256)
 
-    // ==========================================
-    // ✍️ CRÉATION DE PROJET
-    // ==========================================
     @using(updateFields = true, checkExternalCaller = false, preapprovedAssets = true)
     pub fn creerProjet(
         titre: ByteVec, 
         description: ByteVec,
-        liensProjet: ByteVec,       
+        liensProjet: ByteVec,
+        tags: ByteVec,          // 🆕 ex: "#web3 #gaming"
         objectif: U256,
         dureeEnMs: U256
     ) -> () {
@@ -31,6 +30,7 @@ Contract ForumSondage(
         titres.insert!(id, titre)
         descriptions.insert!(id, description)
         liens.insert!(id, liensProjet)
+        hashtags.insert!(id, tags) // 🆕
         objectifs.insert!(id, objectif)
         fondsRecoltes.insert!(id, 0) 
         createurs.insert!(id, callerAddress!())
@@ -43,19 +43,15 @@ Contract ForumSondage(
         emit NouveauProjet(id, callerAddress!(), titre, objectif)
     }
 
-    // ==========================================
-    // 💸 FINANCEMENT ET REÇUS
-    // ==========================================
     @using(updateFields = true, checkExternalCaller = false, preapprovedAssets = true, assetsInContract = true)
     pub fn financerProjet(id: U256, montant: U256) -> () {
         assert!(id < totalProjets, 0) 
-        assert!(blockTimeStamp!() < deadlines[id], 1) // ❌ Projet expiré !
-        assert!(estCloture[id] == false, 2) // ❌ Projet déjà fermé
+        assert!(blockTimeStamp!() < deadlines[id], 1) 
+        assert!(estCloture[id] == false, 2) 
         
         transferTokenToSelf!(callerAddress!(), ALPH, montant)
         fondsRecoltes[id] = fondsRecoltes[id] + montant
         
-        // 🧾 Création du reçu pour un éventuel remboursement
         let cleRecu = blake2b!(toByteVec!(id) ++ toByteVec!(callerAddress!()))
         if (donsParDonateur.contains!(cleRecu)) {
             donsParDonateur[cleRecu] = donsParDonateur[cleRecu] + montant
@@ -66,14 +62,11 @@ Contract ForumSondage(
         emit DonRecu(id, callerAddress!(), montant)
     }
 
-    // ==========================================
-    // 🏆 RETRAIT ET 🛡️ REMBOURSEMENT
-    // ==========================================
     @using(updateFields = true, checkExternalCaller = false, assetsInContract = true)
     pub fn retirerFonds(id: U256) -> () {
         assert!(id < totalProjets, 0)
         assert!(estCloture[id] == false, 2) 
-        assert!(fondsRecoltes[id] >= objectifs[id], 3) // ❌ Objectif non atteint
+        assert!(fondsRecoltes[id] >= objectifs[id], 3) 
 
         let montant = fondsRecoltes[id]
         estCloture[id] = true 
@@ -85,8 +78,8 @@ Contract ForumSondage(
     @using(updateFields = true, checkExternalCaller = false, assetsInContract = true)
     pub fn rembourser(id: U256) -> () {
         assert!(id < totalProjets, 0)
-        assert!(blockTimeStamp!() >= deadlines[id], 4) // ❌ Le temps n'est pas encore écoulé
-        assert!(fondsRecoltes[id] < objectifs[id], 5) // ❌ L'objectif est atteint
+        assert!(blockTimeStamp!() >= deadlines[id], 4) 
+        assert!(fondsRecoltes[id] < objectifs[id], 5) 
         
         let cleRecu = blake2b!(toByteVec!(id) ++ toByteVec!(callerAddress!()))
         assert!(donsParDonateur.contains!(cleRecu), 6) 
@@ -94,21 +87,20 @@ Contract ForumSondage(
         let montantARembourser = donsParDonateur[cleRecu]
         assert!(montantARembourser > 0, 7) 
         
-        donsParDonateur[cleRecu] = 0 // On déchire le reçu
+        donsParDonateur[cleRecu] = 0 
         
         transferTokenFromSelf!(callerAddress!(), ALPH, montantARembourser)
         emit Remboursement(id, callerAddress!(), montantARembourser)
     }
 
-    // ==========================================
-    // 👓 LECTURE (Pour l'interface)
-    // ==========================================
+    // --- GETTERS ---
     pub fn getTotalProjets() -> U256 { return totalProjets }
     pub fn getTitre(id: U256) -> ByteVec { return titres[id] }
     pub fn getObjectif(id: U256) -> U256 { return objectifs[id] }
     pub fn getFondsRecoltes(id: U256) -> U256 { return fondsRecoltes[id] }
     pub fn getDescription(id: U256) -> ByteVec { return descriptions[id] }
     pub fn getLiens(id: U256) -> ByteVec { return liens[id] }
+    pub fn getHashtags(id: U256) -> ByteVec { return hashtags[id] } // 🆕
     pub fn getDeadline(id: U256) -> U256 { return deadlines[id] }
     pub fn getEstCloture(id: U256) -> Bool { return estCloture[id] }
 }

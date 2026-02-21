@@ -6,18 +6,19 @@ import { stringToHex, hexToString, web3, NodeProvider, groupOfAddress, ONE_ALPH 
 import { ForumSondage } from '../../../artifacts/ts' 
 
 export const TokenDapp = () => {
-  // 🚨 REMPLACE PAR TA NOUVELLE ADRESSE DE TESTNET (après le déploiement !)
-  const CONTRACT_ADDRESS = "29M7HxezC2bxEPBeEr45Abe2awJqsfnFFZMorjXa5hUCP" 
+  // 🚨 ADRESSE DU CONTRAT
+  const CONTRACT_ADDRESS = "23NxVaQXXDmgaqtvdynerjr4TyNFR9caE1LQSQ3taAoF5" 
   const contractGroup = groupOfAddress(CONTRACT_ADDRESS)
 
   const { signer, account } = useWallet() 
   
   // États pour le formulaire de création
   const [nouveauTitre, setNouveauTitre] = useState('')
-  const [nouvelleDescription, setNouvelleDescription] = useState('') // 🆕
-  const [nouveauxLiens, setNouveauxLiens] = useState('')             // 🆕
+  const [nouvelleDescription, setNouvelleDescription] = useState('')
+  const [nouveauxLiens, setNouveauxLiens] = useState('')             
   const [nouvelObjectif, setNouvelObjectif] = useState('')
-  const [nouvelleDuree, setNouvelleDuree] = useState('5')            // ⏳ Temps par défaut : 5 min
+  const [nouvelleDuree, setNouvelleDuree] = useState('5')            
+  const [nouveauxTags, setNouveauxTags] = useState('') // 🆕 Hashtags à la création
   
   // États pour les dons et l'affichage
   const [montantsDon, setMontantsDon] = useState<{ [key: number]: string }>({})
@@ -26,15 +27,17 @@ export const TokenDapp = () => {
   
   // Horloge interne pour les comptes à rebours
   const [tempsActuel, setTempsActuel] = useState(Date.now())
+  
+  // 🆕 État pour le filtrage actif
+  const [filtreActif, setFiltreActif] = useState('')   
 
-  // Met à jour l'horloge interne toutes les secondes
   useEffect(() => {
     const timer = setInterval(() => setTempsActuel(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [])
 
   // ==========================================
-  // 👓 LECTURE DES PROJETS (AVEC MÉTADONNÉES)
+  // 👓 LECTURE DES PROJETS
   // ==========================================
   const chargerProjets = async () => {
     setChargement(true)
@@ -53,18 +56,19 @@ export const TokenDapp = () => {
         const deadRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getDeadline({ args: { id: BigInt(i) } })
         const clotureRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getEstCloture({ args: { id: BigInt(i) } })
         
-        // 🆕 Récupération des métadonnées
+        const tagsRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getHashtags({ args: { id: BigInt(i) } })
         const descRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getDescription({ args: { id: BigInt(i) } })
         const liensRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getLiens({ args: { id: BigInt(i) } })
         
         projetsCharges.push({
           id: i,
           titre: hexToString(titreRes.returns),
-          description: hexToString(descRes.returns), // 🆕
-          liens: hexToString(liensRes.returns),      // 🆕
+          description: hexToString(descRes.returns),
+          liens: hexToString(liensRes.returns),      
           objectif: Number(objRes.returns) / 1e18,
           recolte: Number(fondRes.returns) / 1e18,
-          deadline: Number(deadRes.returns),         // ⏳
+          deadline: Number(deadRes.returns),         
+          hashtags: hexToString(tagsRes.returns), // 🆕
           estCloture: clotureRes.returns
         })
       }
@@ -76,7 +80,7 @@ export const TokenDapp = () => {
   useEffect(() => { chargerProjets() }, [])
 
   // ==========================================
-  // ✍️ ÉCRITURE : CRÉER UN PROJET (AVEC MÉTADONNÉES ET TEMPS DYNAMIQUE)
+  // ✍️ ÉCRITURE : CRÉER UN PROJET
   // ==========================================
   const publierProjet = async () => {
       if (!signer || !account) return alert("⚠️ Connecte ton wallet Alephium !")
@@ -88,8 +92,6 @@ export const TokenDapp = () => {
 
       try {
         const objectifEnAttoAlph = BigInt(nouvelObjectif) * ONE_ALPH
-        
-        // ⏳ Conversion du temps choisi (minutes -> millisecondes)
         const dureeEnMs = BigInt(nouvelleDuree) * 60n * 1000n 
 
         await ForumSondage.at(CONTRACT_ADDRESS).transact.creerProjet({
@@ -97,7 +99,8 @@ export const TokenDapp = () => {
           args: { 
             titre: stringToHex(nouveauTitre), 
             description: stringToHex(nouvelleDescription),
-            liensProjet: stringToHex(nouveauxLiens), // ✅ Correspond au contrat Ralph !
+            liensProjet: stringToHex(nouveauxLiens), 
+            tags: stringToHex(nouveauxTags.toLowerCase()), // 🆕 Tags en minuscule
             objectif: objectifEnAttoAlph,
             dureeEnMs: dureeEnMs
           },
@@ -105,8 +108,8 @@ export const TokenDapp = () => {
         })
         
         alert(`🎉 PROJET CRÉÉ ! Validité : ${nouvelleDuree} minutes.`)
-        // On vide le formulaire
-        setNouveauTitre(''); setNouvelleDescription(''); setNouveauxLiens(''); setNouvelObjectif(''); setNouvelleDuree('5');
+        // Vidage du formulaire
+        setNouveauTitre(''); setNouvelleDescription(''); setNouveauxLiens(''); setNouvelObjectif(''); setNouvelleDuree('5'); setNouveauxTags('');
       } catch (error) { console.error(error); alert("❌ Échec de la création.") }
   }
 
@@ -157,6 +160,22 @@ export const TokenDapp = () => {
   }
 
   // ==========================================
+  // 🎛️ LOGIQUE DE FILTRAGE PAR HASHTAGS
+  // ==========================================
+  
+  // 1. On extrait une liste unique de tous les hashtags présents dans les projets
+  const tousLesTagsDisponibles = Array.from(
+    new Set(
+      projets.flatMap(p => p.hashtags ? p.hashtags.split(' ') : [])
+    )
+  ).filter(tag => tag.startsWith('#'))
+
+  // 2. On filtre les projets à afficher en fonction du bouton cliqué
+  const projetsFiltres = filtreActif 
+    ? projets.filter(p => p.hashtags && p.hashtags.includes(filtreActif))
+    : projets;
+
+  // ==========================================
   // 🎨 L'AFFICHAGE DU SITE
   // ==========================================
   return (
@@ -174,9 +193,7 @@ export const TokenDapp = () => {
       <div style={{ marginTop: '20px', padding: '20px', background: 'white', borderRadius: '8px', border: '1px solid #dee2e6', marginBottom: '30px' }}>
         <h3>Lancer un nouveau projet</h3>
         
-        {/* NOUVEAU FORMULAIRE EN COLONNE */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '15px' }}>
-          
           <div style={{ display: 'flex', gap: '10px' }}>
             <input type="text" placeholder="Nom du projet" value={nouveauTitre} onChange={(e) => setNouveauTitre(e.target.value)} style={{ flex: 2, padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }} />
             <input type="number" placeholder="Objectif (ALPH)" value={nouvelObjectif} onChange={(e) => setNouvelObjectif(e.target.value)} style={{ flex: 1, padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }} />
@@ -184,7 +201,10 @@ export const TokenDapp = () => {
           </div>
 
           <input type="text" placeholder="Description courte (Le pitch de ton projet)" value={nouvelleDescription} onChange={(e) => setNouvelleDescription(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }} />
-          <input type="text" placeholder="Liens utiles (ex: github.com/projet | @twitter | email@test.com)" value={nouveauxLiens} onChange={(e) => setNouveauxLiens(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }} />
+          <input type="text" placeholder="Liens utiles (ex: github.com/projet | @twitter)" value={nouveauxLiens} onChange={(e) => setNouveauxLiens(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }} />
+          
+          {/* 🆕 CHAMP HASHTAGS */}
+          <input type="text" placeholder="Hashtags (ex: #web3 #gaming #art)" value={nouveauxTags} onChange={(e) => setNouveauxTags(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }} />
           
           <button onClick={publierProjet} style={{ padding: '12px 24px', background: '#0070f3', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-start' }}>
             Créer le projet
@@ -194,16 +214,38 @@ export const TokenDapp = () => {
 
       {/* --- LISTE DES PROJETS --- */}
       <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
           <h3>Projets en cours de financement</h3>
           <button onClick={chargerProjets} style={{ padding: '8px 16px', background: '#6c757d', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
             🔄 Rafraîchir
           </button>
         </div>
 
+        {/* 🎛️ BARRE DE FILTRAGE DYNAMIQUE */}
+        {tousLesTagsDisponibles.length > 0 && (
+          <div style={{ marginBottom: '20px', padding: '15px', background: 'white', borderRadius: '8px', border: '1px solid #dee2e6' }}>
+            <span style={{ fontWeight: 'bold', marginRight: '15px' }}>Trier par thème :</span>
+            <button 
+              onClick={() => setFiltreActif('')} 
+              style={{ padding: '6px 12px', margin: '0 5px', borderRadius: '20px', border: filtreActif === '' ? 'none' : '1px solid #ccc', background: filtreActif === '' ? '#0070f3' : 'white', color: filtreActif === '' ? 'white' : 'black', cursor: 'pointer', transition: '0.2s' }}
+            >
+              Tous
+            </button>
+            {tousLesTagsDisponibles.map(tag => (
+              <button 
+                key={tag} 
+                onClick={() => setFiltreActif(tag)} 
+                style={{ padding: '6px 12px', margin: '0 5px', borderRadius: '20px', border: filtreActif === tag ? 'none' : '1px solid #ccc', background: filtreActif === tag ? '#10b981' : 'white', color: filtreActif === tag ? 'white' : 'black', cursor: 'pointer', transition: '0.2s' }}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        )}
+
         {chargement ? <p style={{ color: '#0070f3', fontWeight: 'bold' }}>⏳ Chargement blockchain...</p> : (
-          projets.map((projet) => {
-            // Logique du temps
+          /* 🆕 ON UTILISE projetsFiltres AU LIEU DE projets */
+          projetsFiltres.map((projet) => {
             const tempsRestant = Math.max(0, Math.floor((projet.deadline - tempsActuel) / 1000))
             const estFini = tempsRestant === 0
             const objectifAtteint = projet.recolte >= projet.objectif
@@ -211,11 +253,8 @@ export const TokenDapp = () => {
             return (
               <div key={projet.id} style={{ background: 'white', padding: '20px', marginBottom: '15px', marginTop: '15px', borderRadius: '8px', borderLeft: projet.estCloture ? '6px solid #6c757d' : '6px solid #10b981', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
                 
-                {/* En-tête du projet */}
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{projet.titre}</div>
-                  
-                  {/* Badge de statut / Temps */}
                   {projet.estCloture ? (
                     <span style={{ color: '#6c757d', fontWeight: 'bold' }}>🔒 CAISSE FERMÉE</span>
                   ) : (
@@ -225,13 +264,22 @@ export const TokenDapp = () => {
                   )}
                 </div>
 
-                {/* 🆕 Affichage des Métadonnées */}
+                {/* 🆕 AFFICHAGE DES HASHTAGS SUR LA CARTE */}
+                {projet.hashtags && (
+                  <div style={{ marginTop: '10px' }}>
+                    {projet.hashtags.split(' ').map((tag: string) => tag.startsWith('#') && (
+                      <span key={tag} style={{ background: '#e0e7ff', color: '#4f46e5', padding: '4px 8px', borderRadius: '12px', fontSize: '12px', marginRight: '5px', fontWeight: 'bold' }}>
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
                 <div style={{ fontSize: '14px', color: '#4b5563', margin: '15px 0', padding: '10px', background: '#f3f4f6', borderRadius: '6px' }}>
                   <p style={{ margin: '0 0 5px 0' }}>📝 <strong>À propos :</strong> {projet.description || 'Aucune description'}</p>
                   <p style={{ margin: 0 }}>🔗 <strong>Liens :</strong> <span style={{ color: '#0070f3' }}>{projet.liens || 'Aucun lien fourni'}</span></p>
                 </div>
 
-                {/* Barre de progression */}
                 <div style={{ margin: '15px 0' }}>
                   <strong>{projet.recolte} ALPH</strong> / {projet.objectif} ALPH
                   <div style={{ width: '100%', background: '#e9ecef', height: '8px', borderRadius: '4px', marginTop: '8px', overflow: 'hidden' }}>
@@ -239,11 +287,9 @@ export const TokenDapp = () => {
                   </div>
                 </div>
 
-                {/* Boutons d'action conditionnels */}
                 {!projet.estCloture && (
                   <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginTop: '20px' }}>
                     
-                    {/* FINANCER (Si le temps n'est pas écoulé) */}
                     {!estFini && (
                       <div style={{ display: 'flex', gap: '5px' }}>
                         <input type="number" placeholder="Ex: 2.5" value={montantsDon[projet.id] || ''} onChange={(e) => setMontantsDon({...montantsDon, [projet.id]: e.target.value})} style={{ padding: '8px', width: '100px', borderRadius: '4px', border: '1px solid #ccc' }} />
@@ -251,12 +297,10 @@ export const TokenDapp = () => {
                       </div>
                     )}
 
-                    {/* RETIRER FONDS (Si objectif atteint) */}
                     {objectifAtteint && (
-                       <button onClick={() => retirerFonds(projet.id)} style={{ background: '#10b981', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>🏆 Retirer les fonds (Créateur)</button>
+                       <button onClick={() => retirerFonds(projet.id)} style={{ background: '#10b981', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>🏆 Retirer les fonds</button>
                     )}
 
-                    {/* REMBOURSER (Si échec + temps écoulé) */}
                     {estFini && !objectifAtteint && (
                       <button onClick={() => demanderRemboursement(projet.id)} style={{ background: '#ef4444', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>🛡️ Demander remboursement</button>
                     )}

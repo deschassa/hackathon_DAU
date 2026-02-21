@@ -6,9 +6,10 @@ Un outil communautaire de [d'investissement] décentralisé sur la blockchain Al
 
 
 ##  Évolution du Projet (Hackathon)
-- **V1 (Initial) :** Système de forum et de votes simples sur la blockchain.
-- **V2 (Actuelle) :** Pivot vers un système complet de Crowdfunding (Financement participatif) avec gestion du temps (TimeLocks), remboursements automatiques en cas d'échec, et retraits sécurisés pour les créateurs.
-
+- **V1  :** Système de forum et de votes simples sur la blockchain.
+- **V2  :** Pivot vers un système complet de Crowdfunding (Financement participatif) avec gestion du temps (TimeLocks), remboursements automatiques en cas d'échec, et retraits sécurisés pour les créateurs.
+- **V3  :** Intégration de métadonnées enrichies (GitHub, contact) pour renforcer la confiance et mise en place de durées de financement personnalisables via des TimeLocks natifs
+- **V4  :** Implémentation d'un système de hashtags on-chain permettant le tri thématique et le filtrage dynamique des projets pour une expérience utilisateur fluide et scalable.
 
 ##  LE PROJET
 
