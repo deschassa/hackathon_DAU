@@ -2,53 +2,61 @@ Contract ForumSondage(
     mut totalProjets: U256
 ) {
     mapping[U256, ByteVec] titres
+    mapping[U256, ByteVec] descriptions 
+    mapping[U256, ByteVec] liens        
     mapping[U256, U256] objectifs
     mapping[U256, U256] fondsRecoltes
     mapping[U256, Address] createurs
-    
-    // ⏳ NOUVEAU : Gestion du temps et du statut
-    mapping[U256, U256] deadlines 
-    mapping[U256, Bool] estCloture 
-    
-    // 💸 NOUVEAU : On garde une trace de qui a donné combien pour les remboursements
-    mapping[ByteVec, U256] donsParDonateur
+    mapping[U256, U256] deadlines       
+    mapping[U256, Bool] estCloture
+    mapping[ByteVec, U256] donsParDonateur 
 
-    event NouveauProjet(id: U256, createur: Address, titre: ByteVec, objectif: U256, deadline: U256)
+    event NouveauProjet(id: U256, createur: Address, titre: ByteVec, objectif: U256)
     event DonRecu(id: U256, donateur: Address, montant: U256)
     event FondsRetires(id: U256, createur: Address, montant: U256)
     event Remboursement(id: U256, donateur: Address, montant: U256)
 
+    // ==========================================
+    // ✍️ CRÉATION DE PROJET
+    // ==========================================
     @using(updateFields = true, checkExternalCaller = false, preapprovedAssets = true)
-    pub fn creerProjet(titre: ByteVec, objectif: U256) -> () {
+    pub fn creerProjet(
+        titre: ByteVec, 
+        description: ByteVec,
+        liensProjet: ByteVec,       
+        objectif: U256,
+        dureeEnMs: U256
+    ) -> () {
         let id = totalProjets
         titres.insert!(id, titre)
+        descriptions.insert!(id, description)
+        liens.insert!(id, liensProjet)
         objectifs.insert!(id, objectif)
         fondsRecoltes.insert!(id, 0) 
         createurs.insert!(id, callerAddress!())
         
-        // ⏳ 5 minutes = 300 000 millisecondes (pour les tests)
-        let deadline = blockTimeStamp!() + 300000 
+        let deadline = blockTimeStamp!() + dureeEnMs 
         deadlines.insert!(id, deadline)
         estCloture.insert!(id, false)
         
         totalProjets = totalProjets + 1
-        emit NouveauProjet(id, callerAddress!(), titre, objectif, deadline)
+        emit NouveauProjet(id, callerAddress!(), titre, objectif)
     }
 
+    // ==========================================
+    // 💸 FINANCEMENT ET REÇUS
+    // ==========================================
     @using(updateFields = true, checkExternalCaller = false, preapprovedAssets = true, assetsInContract = true)
     pub fn financerProjet(id: U256, montant: U256) -> () {
-        assert!(id < totalProjets, 0)
+        assert!(id < totalProjets, 0) 
         assert!(blockTimeStamp!() < deadlines[id], 1) // ❌ Projet expiré !
         assert!(estCloture[id] == false, 2) // ❌ Projet déjà fermé
-
-        // On prend l'argent
+        
         transferTokenToSelf!(callerAddress!(), ALPH, montant)
         fondsRecoltes[id] = fondsRecoltes[id] + montant
         
-        // On crée un reçu unique (ID du projet + Adresse du donateur)
+        // 🧾 Création du reçu pour un éventuel remboursement
         let cleRecu = blake2b!(toByteVec!(id) ++ toByteVec!(callerAddress!()))
-        
-        // On met à jour le reçu du donateur
         if (donsParDonateur.contains!(cleRecu)) {
             donsParDonateur[cleRecu] = donsParDonateur[cleRecu] + montant
         } else {
@@ -58,44 +66,49 @@ Contract ForumSondage(
         emit DonRecu(id, callerAddress!(), montant)
     }
 
-    // 🏆 LE CRÉATEUR RÉCUPÈRE L'ARGENT SI SUCCÈS
+    // ==========================================
+    // 🏆 RETRAIT ET 🛡️ REMBOURSEMENT
+    // ==========================================
     @using(updateFields = true, checkExternalCaller = false, assetsInContract = true)
     pub fn retirerFonds(id: U256) -> () {
         assert!(id < totalProjets, 0)
-        assert!(estCloture[id] == false, 2) // ❌ Déjà retiré
+        assert!(estCloture[id] == false, 2) 
         assert!(fondsRecoltes[id] >= objectifs[id], 3) // ❌ Objectif non atteint
 
         let montant = fondsRecoltes[id]
-        estCloture[id] = true // On ferme la caisse
+        estCloture[id] = true 
         
         transferTokenFromSelf!(createurs[id], ALPH, montant)
         emit FondsRetires(id, createurs[id], montant)
     }
 
-    // 🛡️ LES DONATEURS RÉCUPÈRENT L'ARGENT SI ÉCHEC + TEMPS DÉPASSÉ
     @using(updateFields = true, checkExternalCaller = false, assetsInContract = true)
     pub fn rembourser(id: U256) -> () {
         assert!(id < totalProjets, 0)
         assert!(blockTimeStamp!() >= deadlines[id], 4) // ❌ Le temps n'est pas encore écoulé
-        assert!(fondsRecoltes[id] < objectifs[id], 5) // ❌ L'objectif est atteint, pas de remboursement possible !
+        assert!(fondsRecoltes[id] < objectifs[id], 5) // ❌ L'objectif est atteint
         
         let cleRecu = blake2b!(toByteVec!(id) ++ toByteVec!(callerAddress!()))
-        assert!(donsParDonateur.contains!(cleRecu), 6) // ❌ Vous n'avez pas donné à ce projet
+        assert!(donsParDonateur.contains!(cleRecu), 6) 
         
         let montantARembourser = donsParDonateur[cleRecu]
-        assert!(montantARembourser > 0, 7) // ❌ Déjà remboursé
+        assert!(montantARembourser > 0, 7) 
         
-        donsParDonateur[cleRecu] = 0 // On déchire le reçu pour éviter le double remboursement
+        donsParDonateur[cleRecu] = 0 // On déchire le reçu
         
         transferTokenFromSelf!(callerAddress!(), ALPH, montantARembourser)
         emit Remboursement(id, callerAddress!(), montantARembourser)
     }
 
-    // --- GETTERS ---
+    // ==========================================
+    // 👓 LECTURE (Pour l'interface)
+    // ==========================================
     pub fn getTotalProjets() -> U256 { return totalProjets }
     pub fn getTitre(id: U256) -> ByteVec { return titres[id] }
     pub fn getObjectif(id: U256) -> U256 { return objectifs[id] }
     pub fn getFondsRecoltes(id: U256) -> U256 { return fondsRecoltes[id] }
+    pub fn getDescription(id: U256) -> ByteVec { return descriptions[id] }
+    pub fn getLiens(id: U256) -> ByteVec { return liens[id] }
     pub fn getDeadline(id: U256) -> U256 { return deadlines[id] }
     pub fn getEstCloture(id: U256) -> Bool { return estCloture[id] }
 }
