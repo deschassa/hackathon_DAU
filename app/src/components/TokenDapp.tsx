@@ -4,12 +4,11 @@ import React, { useState, useEffect } from 'react'
 import { useWallet } from '@alephium/web3-react'
 import { stringToHex, hexToString, web3, NodeProvider, groupOfAddress, ONE_ALPH } from '@alephium/web3'
 import { ForumSondage } from '../../../artifacts/ts' 
+import { toast, Toaster } from 'react-hot-toast' 
 
 export const TokenDapp = () => {
-  // 🚨 GARDE BIEN TON ADRESSE ICI :
   const CONTRACT_ADDRESS = "zqpBh2xGVxsg7jYGki1DgScP5nC6DjuBQ9VpyBfqzhvw" 
   const contractGroup = groupOfAddress(CONTRACT_ADDRESS)
-
   const { signer, account } = useWallet() 
   
   // États Formulaire
@@ -23,18 +22,19 @@ export const TokenDapp = () => {
   // États Actions
   const [montantsDon, setMontantsDon] = useState<{ [key: number]: string }>({})
   const [notesVote, setNotesVote] = useState<{ [key: number]: string }>({}) 
+  const [txEnCours, setTxEnCours] = useState(false) 
   
-  // États d'affichage
+  // États d'affichage & Tris
   const [projets, setProjets] = useState<any[]>([])
   const [chargement, setChargement] = useState(false)
   const [tempsActuel, setTempsActuel] = useState(Date.now())
   const [filtreActif, setFiltreActif] = useState('')   
   const [ongletActif, setOngletActif] = useState('en_cours') 
+  const [triActif, setTriActif] = useState('recent') // 🌟 NOUVEAU : Option de tri ('recent', 'fin_proche', 'plus_finances')
   
   // 🌓 MODE SOMBRE
   const [isDarkMode, setIsDarkMode] = useState(false)
 
-  // 🎨 PALETTE DE COULEURS DYNAMIQUE
   const theme = {
     bg: isDarkMode ? '#111827' : '#f8f9fa',
     cardBg: isDarkMode ? '#1f2937' : 'white',
@@ -49,11 +49,10 @@ export const TokenDapp = () => {
     infoBoxBg: isDarkMode ? '#374151' : '#f3f4f6',
   }
 
-  // 🛠️ CORRECTION : Appliquer le fond sombre à tout le <body> de la page web
   useEffect(() => {
     document.body.style.backgroundColor = theme.bg;
     document.body.style.color = theme.text;
-    document.body.style.margin = '0'; // Enlève les marges blanches autour
+    document.body.style.margin = '0'; 
   }, [isDarkMode, theme.bg, theme.text]);
 
   useEffect(() => {
@@ -65,12 +64,10 @@ export const TokenDapp = () => {
     setChargement(true)
     const node = new NodeProvider('https://wallet-v20.testnet.alephium.org')
     web3.setCurrentNodeProvider(node)
-
     try {
       const totalResult = await ForumSondage.at(CONTRACT_ADDRESS).view.getTotalProjets()
       const total = Number(totalResult.returns)
       let projetsCharges = []
-
       for(let i = 0; i < total; i++) {
         const titreRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getTitre({ args: { id: BigInt(i) } })
         const objRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getObjectif({ args: { id: BigInt(i) } })
@@ -96,18 +93,22 @@ export const TokenDapp = () => {
         })
       }
       setProjets(projetsCharges)
-    } catch (error) { console.error("Erreur de lecture :", error) }
+    } catch (error) { toast.error("Erreur lors de la lecture des projets.") }
     setChargement(false)
   }
 
   useEffect(() => { chargerProjets() }, [])
 
-  // === FONCTIONS D'ÉCRITURE === 
+  // === FONCTIONS D'ÉCRITURE ===
   const publierProjet = async () => {
-      if (!signer || !account) return alert("⚠️ Connecte ton wallet !")
-      if (!nouveauTitre || !nouvelObjectif) return alert("⚠️ Remplis au moins le titre et l'objectif !")
+      if (!signer || !account) return toast.error("⚠️ Connecte ton wallet Alephium !")
+      if (!nouveauTitre || !nouvelObjectif) return toast.error("⚠️ Remplis au moins le titre et l'objectif !")
+      
+      setTxEnCours(true)
+      const toastId = toast.loading('Création du projet en cours...')
       const node = new NodeProvider('https://wallet-v20.testnet.alephium.org')
       web3.setCurrentNodeProvider(node)
+      
       try {
         const objectifEnAttoAlph = BigInt(nouvelObjectif) * ONE_ALPH
         const dureeEnMs = BigInt(nouvelleDuree) * 60n * 1000n 
@@ -116,90 +117,122 @@ export const TokenDapp = () => {
           args: { titre: stringToHex(nouveauTitre), description: stringToHex(nouvelleDescription), liensProjet: stringToHex(nouveauxLiens), tags: stringToHex(nouveauxTags.toLowerCase()), objectif: objectifEnAttoAlph, dureeEnMs: dureeEnMs },
           attoAlphAmount: ONE_ALPH / 10n 
         })
-        alert(`🎉 PROJET CRÉÉ ! Validité : ${nouvelleDuree} minutes.`)
+        toast.success(`🎉 PROJET CRÉÉ ! Validité : ${nouvelleDuree} minutes.`, { id: toastId })
         setNouveauTitre(''); setNouvelleDescription(''); setNouveauxLiens(''); setNouvelObjectif(''); setNouvelleDuree('5'); setNouveauxTags('');
-      } catch (error) { alert("❌ Échec de la création.") }
+        setTimeout(chargerProjets, 3000)
+      } catch (error) { toast.error("❌ Échec de la création.", { id: toastId }) } 
+      finally { setTxEnCours(false) }
   }
 
   const financerProjet = async (projetId: number) => {
-    if (!signer) return alert("⚠️ Connecte ton wallet !")
+    if (!signer) return toast.error("⚠️ Connecte ton wallet !")
     const montantSaisi = montantsDon[projetId]
-    if (!montantSaisi || Number(montantSaisi) <= 0) return alert("Saisis un montant valide en ALPH !")
+    if (!montantSaisi || Number(montantSaisi) <= 0) return toast.error("Saisis un montant valide en ALPH !")
+    
+    setTxEnCours(true)
+    const toastId = toast.loading('Envoi des fonds en cours...')
     const node = new NodeProvider('https://wallet-v20.testnet.alephium.org')
     web3.setCurrentNodeProvider(node)
+    
     try {
       const montantEnAttoAlph = BigInt(Math.floor(Number(montantSaisi) * 1e18))
       await ForumSondage.at(CONTRACT_ADDRESS).transact.financerProjet({ signer: signer, args: { id: BigInt(projetId), montant: montantEnAttoAlph }, attoAlphAmount: montantEnAttoAlph + (ONE_ALPH / 10n) })
-      alert(`💸 Don de ${montantSaisi} ALPH envoyé !`)
-    } catch (e) { alert("Erreur : Projet expiré ou annulé.") }
+      toast.success(`💸 Don de ${montantSaisi} ALPH envoyé avec succès !`, { id: toastId })
+      setTimeout(chargerProjets, 3000)
+    } catch (e) { toast.error("Erreur : Projet expiré ou annulé.", { id: toastId }) } 
+    finally { setTxEnCours(false) }
   }
 
   const retirerFonds = async (projetId: number) => {
     if (!signer) return
+    setTxEnCours(true)
+    const toastId = toast.loading('Retrait des fonds en cours...')
     const node = new NodeProvider('https://wallet-v20.testnet.alephium.org')
     web3.setCurrentNodeProvider(node)
     try {
       await ForumSondage.at(CONTRACT_ADDRESS).transact.retirerFonds({ signer: signer, args: { id: BigInt(projetId) }, attoAlphAmount: ONE_ALPH / 10n })
-      alert(`🏆 SUCCÈS ! Les fonds de cette phase ont été virés sur ton wallet !`)
-    } catch (e) { alert("Erreur : Tu n'es pas le créateur ou les conditions ne sont pas remplies.") }
+      toast.success(`🏆 SUCCÈS ! Les fonds ont été virés sur ton wallet !`, { id: toastId })
+      setTimeout(chargerProjets, 3000)
+    } catch (e) { toast.error("Erreur : Créateur invalide ou conditions non remplies.", { id: toastId }) } 
+    finally { setTxEnCours(false) }
   }
 
   const annulerMonProjet = async (projetId: number) => {
     if (!signer) return
+    setTxEnCours(true)
+    const toastId = toast.loading('Annulation du projet...')
     const node = new NodeProvider('https://wallet-v20.testnet.alephium.org')
     web3.setCurrentNodeProvider(node)
     try {
       await ForumSondage.at(CONTRACT_ADDRESS).transact.annulerProjet({ signer: signer, args: { id: BigInt(projetId) }, attoAlphAmount: ONE_ALPH / 10n })
-      alert(`🚩 Projet annulé ! Les investisseurs peuvent se rembourser.`)
-    } catch (e) { alert("Erreur : Seul le créateur peut annuler son projet.") }
+      toast.success(`🚩 Projet annulé ! Les investisseurs peuvent se rembourser.`, { id: toastId })
+      setTimeout(chargerProjets, 3000)
+    } catch (e) { toast.error("Erreur d'annulation.", { id: toastId }) } 
+    finally { setTxEnCours(false) }
   }
 
   const voterProjet = async (projetId: number) => {
     if (!signer) return
     const note = notesVote[projetId]
-    if (!note || Number(note) < 1 || Number(note) > 5) return alert("Choisis une note entre 1 et 5 !")
+    if (!note || Number(note) < 1 || Number(note) > 5) return toast.error("Choisis une note entre 1 et 5 !")
+    setTxEnCours(true)
+    const toastId = toast.loading('Enregistrement du vote...')
     const node = new NodeProvider('https://wallet-v20.testnet.alephium.org')
     web3.setCurrentNodeProvider(node)
     try {
       await ForumSondage.at(CONTRACT_ADDRESS).transact.voterPourPhaseDeux({ signer: signer, args: { id: BigInt(projetId), note: BigInt(note) }, attoAlphAmount: ONE_ALPH / 10n })
-      alert(`⭐ Ton vote a été enregistré !`)
-    } catch (e) { alert("Erreur : Tu as déjà voté ou tu n'as pas investi.") }
+      toast.success(`⭐ Ton vote a été enregistré !`, { id: toastId })
+      setTimeout(chargerProjets, 3000)
+    } catch (e) { toast.error("Erreur : Tu as déjà voté ou tu n'as pas investi.", { id: toastId }) } 
+    finally { setTxEnCours(false) }
   }
 
   const demanderRemboursement = async (projetId: number) => {
     if (!signer) return
+    setTxEnCours(true)
+    const toastId = toast.loading('Demande de remboursement...')
     const node = new NodeProvider('https://wallet-v20.testnet.alephium.org')
     web3.setCurrentNodeProvider(node)
     try {
       await ForumSondage.at(CONTRACT_ADDRESS).transact.rembourser({ signer: signer, args: { id: BigInt(projetId) }, attoAlphAmount: ONE_ALPH / 10n })
-      alert(`🛡️ REMBOURSÉ !`)
-    } catch (e) { alert("Erreur : Conditions de remboursement non remplies.") }
+      toast.success(`🛡️ REMBOURSÉ ! L'argent est de retour.`, { id: toastId })
+      setTimeout(chargerProjets, 3000)
+    } catch (e) { toast.error("Erreur : Conditions de remboursement non remplies.", { id: toastId }) } 
+    finally { setTxEnCours(false) }
   }
 
-  // === FILTRAGE ET ONGLETS ===
+  // === FILTRAGE, ONGLETS ET TRI ===
   const tousLesTagsDisponibles = Array.from(new Set(projets.flatMap(p => p.hashtags ? p.hashtags.split(' ') : []))).filter(tag => tag.startsWith('#'))
   const projetsFiltresParTags = filtreActif ? projets.filter(p => p.hashtags && p.hashtags.includes(filtreActif)) : projets;
 
-  const projetsAffiches = projetsFiltresParTags.filter(projet => {
+  // 1. Filtrage par onglets
+  let projetsAffiches = projetsFiltresParTags.filter(projet => {
     const estFini = Math.max(0, Math.floor((projet.deadline - tempsActuel) / 1000)) === 0;
     const objectifAtteint = projet.recolte >= projet.objectif;
 
-    if (ongletActif === 'en_cours') {
-      return !projet.estAnnule && !estFini && !objectifAtteint && projet.phaseRetrait === 0;
-    } else if (ongletActif === 'termines') {
-      return !projet.estAnnule && (objectifAtteint || projet.phaseRetrait > 0);
-    } else if (ongletActif === 'annules') {
-      return projet.estAnnule || (estFini && !objectifAtteint);
-    }
+    if (ongletActif === 'en_cours') return !projet.estAnnule && !estFini && !objectifAtteint && projet.phaseRetrait === 0;
+    else if (ongletActif === 'termines') return !projet.estAnnule && (objectifAtteint || projet.phaseRetrait > 0);
+    else if (ongletActif === 'annules') return projet.estAnnule || (estFini && !objectifAtteint);
     return false;
   });
 
-  // ==========================================
-  // 🎨 AFFICHAGE
-  // ==========================================
+  // 🌟 NOUVEAU : 2. Logique de Tri Dynamique
+  projetsAffiches = projetsAffiches.sort((a, b) => {
+    if (triActif === 'fin_proche') {
+      return a.deadline - b.deadline; // Plus la deadline est petite, plus c'est proche
+    } else if (triActif === 'plus_finances') {
+      const pourcentageA = a.objectif > 0 ? (a.recolte / a.objectif) : 0;
+      const pourcentageB = b.objectif > 0 ? (b.recolte / b.objectif) : 0;
+      return pourcentageB - pourcentageA; // Ordre décroissant (le plus haut %)
+    }
+    // Par défaut (recent) : L'ID le plus grand (le dernier créé) en premier
+    return b.id - a.id;
+  });
+
   return (
     <div style={{ padding: '20px', minHeight: '100vh', transition: 'all 0.3s ease', fontFamily: 'sans-serif' }}>
-      
+      <Toaster position="bottom-right" reverseOrder={false} />
+
       {/* HEADER & BOUTON THEME */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
         <button 
@@ -218,7 +251,7 @@ export const TokenDapp = () => {
       </div>
 
       {/* FORMULAIRE CRÉATION */}
-      <div style={{ marginTop: '20px', padding: '20px', background: theme.cardBg, borderRadius: '8px', border: `1px solid ${theme.border}`, marginBottom: '30px' }}>
+      <div style={{ marginTop: '20px', padding: '20px', background: theme.cardBg, borderRadius: '8px', border: `1px solid ${theme.border}`, marginBottom: '30px', opacity: txEnCours ? 0.6 : 1, pointerEvents: txEnCours ? 'none' : 'auto' }}>
         <h3 style={{ margin: '0 0 15px 0' }}>Lancer un nouveau projet</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -229,28 +262,46 @@ export const TokenDapp = () => {
           <input type="text" placeholder="Description courte du projet" value={nouvelleDescription} onChange={(e) => setNouvelleDescription(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: `1px solid ${theme.border}`, background: theme.inputBg, color: theme.inputText }} />
           <input type="text" placeholder="Liens utiles (ex: github.com/projet)" value={nouveauxLiens} onChange={(e) => setNouveauxLiens(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: `1px solid ${theme.border}`, background: theme.inputBg, color: theme.inputText }} />
           <input type="text" placeholder="Hashtags (ex: #web3 #gaming)" value={nouveauxTags} onChange={(e) => setNouveauxTags(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: `1px solid ${theme.border}`, background: theme.inputBg, color: theme.inputText }} />
-          <button onClick={publierProjet} style={{ padding: '12px 24px', background: '#0070f3', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', alignSelf: 'flex-start' }}>Créer le projet</button>
+          <button disabled={txEnCours} onClick={publierProjet} style={{ padding: '12px 24px', background: txEnCours ? '#9ca3af' : '#0070f3', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: txEnCours ? 'not-allowed' : 'pointer', alignSelf: 'flex-start' }}>
+            {txEnCours ? '⏳ Transaction...' : 'Créer le projet'}
+          </button>
         </div>
       </div>
 
       {/* LISTE DES PROJETS */}
-      <div>
+      <div style={{ opacity: txEnCours ? 0.7 : 1, pointerEvents: txEnCours ? 'none' : 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
           <h3 style={{ margin: 0 }}>Projets de la communauté</h3>
           <button onClick={chargerProjets} style={{ padding: '8px 16px', background: '#6c757d', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>🔄 Rafraîchir</button>
         </div>
 
-        {/* 🗂️ ONGLETS */}
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: `2px solid ${theme.border}`, paddingBottom: '10px', flexWrap: 'wrap' }}>
-          <button onClick={() => setOngletActif('en_cours')} style={{ padding: '10px 20px', background: ongletActif === 'en_cours' ? '#0070f3' : 'transparent', color: ongletActif === 'en_cours' ? 'white' : theme.textMuted, border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>🟢 En cours</button>
-          <button onClick={() => setOngletActif('termines')} style={{ padding: '10px 20px', background: ongletActif === 'termines' ? '#10b981' : 'transparent', color: ongletActif === 'termines' ? 'white' : theme.textMuted, border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>🏆 Objectif atteint & Votes</button>
-          <button onClick={() => setOngletActif('annules')} style={{ padding: '10px 20px', background: ongletActif === 'annules' ? '#ef4444' : 'transparent', color: ongletActif === 'annules' ? 'white' : theme.textMuted, border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>🚩 Annulés / Échoués</button>
+        {/* 🗂️ ONGLETS & 🌟 MENU DE TRI */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: `2px solid ${theme.border}`, paddingBottom: '10px', flexWrap: 'wrap', gap: '15px' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <button onClick={() => setOngletActif('en_cours')} style={{ padding: '10px 20px', background: ongletActif === 'en_cours' ? '#0070f3' : 'transparent', color: ongletActif === 'en_cours' ? 'white' : theme.textMuted, border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>🟢 En cours</button>
+            <button onClick={() => setOngletActif('termines')} style={{ padding: '10px 20px', background: ongletActif === 'termines' ? '#10b981' : 'transparent', color: ongletActif === 'termines' ? 'white' : theme.textMuted, border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>🏆 Objectif atteint & Votes</button>
+            <button onClick={() => setOngletActif('annules')} style={{ padding: '10px 20px', background: ongletActif === 'annules' ? '#ef4444' : 'transparent', color: ongletActif === 'annules' ? 'white' : theme.textMuted, border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>🚩 Annulés / Échoués</button>
+          </div>
+          
+          {/* 🌟 NOUVEAU : SELECTEUR DE TRI */}
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <span style={{ fontSize: '14px', fontWeight: 'bold', color: theme.text }}>Trier :</span>
+            <select 
+              value={triActif} 
+              onChange={(e) => setTriActif(e.target.value)}
+              style={{ padding: '8px 12px', borderRadius: '6px', border: `1px solid ${theme.border}`, background: theme.inputBg, color: theme.inputText, cursor: 'pointer' }}
+            >
+              <option value="recent">✨ Plus récents</option>
+              <option value="plus_finances">🔥 Plus financés (%)</option>
+              <option value="fin_proche">⏳ Se termine bientôt</option>
+            </select>
+          </div>
         </div>
 
         {/* BARRE FILTRES TAGS */}
         {tousLesTagsDisponibles.length > 0 && (
           <div style={{ marginBottom: '20px', padding: '15px', background: theme.cardBg, borderRadius: '8px', border: `1px solid ${theme.border}` }}>
-            <span style={{ fontWeight: 'bold', marginRight: '15px' }}>Trier par thème :</span>
+            <span style={{ fontWeight: 'bold', marginRight: '15px' }}>Filtrer par thème :</span>
             <button onClick={() => setFiltreActif('')} style={{ padding: '6px 12px', margin: '0 5px', borderRadius: '20px', border: filtreActif === '' ? 'none' : `1px solid ${theme.border}`, background: filtreActif === '' ? '#0070f3' : theme.inputBg, color: filtreActif === '' ? 'white' : theme.text, cursor: 'pointer' }}>Tous</button>
             {tousLesTagsDisponibles.map(tag => (
               <button key={tag} onClick={() => setFiltreActif(tag)} style={{ padding: '6px 12px', margin: '0 5px', borderRadius: '20px', border: filtreActif === tag ? 'none' : `1px solid ${theme.border}`, background: filtreActif === tag ? '#10b981' : theme.inputBg, color: filtreActif === tag ? 'white' : theme.text, cursor: 'pointer' }}>{tag}</button>
@@ -258,8 +309,17 @@ export const TokenDapp = () => {
           </div>
         )}
 
+        {/* EMPTY STATE */}
+        {!chargement && projetsAffiches.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '40px 20px', background: theme.cardBg, borderRadius: '8px', border: `1px dashed ${theme.border}`, color: theme.textMuted }}>
+             <p style={{ fontSize: '40px', margin: '0 0 10px 0' }}>{ongletActif === 'en_cours' ? '🌱' : ongletActif === 'termines' ? '🏆' : '🍃'}</p>
+             <p style={{ fontSize: '18px', fontWeight: 'bold' }}>Aucun projet ici pour le moment.</p>
+             {ongletActif === 'en_cours' && <p>Soyez le premier à lancer une idée !</p>}
+          </div>
+        )}
+
         {/* AFFICHAGE DES CARTES */}
-        {chargement ? <p style={{ color: '#0070f3', fontWeight: 'bold' }}>⏳ Chargement blockchain...</p> : (
+        {chargement ? <p style={{ color: '#0070f3', fontWeight: 'bold', textAlign: 'center', padding: '20px' }}>⏳ Chargement de la blockchain...</p> : (
           projetsAffiches.map((projet) => {
             const tempsRestant = Math.max(0, Math.floor((projet.deadline - tempsActuel) / 1000))
             const estFini = tempsRestant === 0
@@ -317,7 +377,7 @@ export const TokenDapp = () => {
                   {!projet.estAnnule && !estFini && projet.phaseRetrait === 0 && !objectifAtteint && (
                     <div style={{ display: 'flex', gap: '5px' }}>
                       <input type="number" placeholder="Ex: 2.5" value={montantsDon[projet.id] || ''} onChange={(e) => setMontantsDon({...montantsDon, [projet.id]: e.target.value})} style={{ padding: '8px', width: '100px', borderRadius: '4px', border: `1px solid ${theme.border}`, background: theme.inputBg, color: theme.inputText }} />
-                      <button onClick={() => financerProjet(projet.id)} style={{ background: '#3b82f6', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Donner (ALPH)</button>
+                      <button disabled={txEnCours} onClick={() => financerProjet(projet.id)} style={{ background: txEnCours ? '#9ca3af' : '#3b82f6', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: txEnCours ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>Donner (ALPH)</button>
                     </div>
                   )}
 
@@ -325,22 +385,22 @@ export const TokenDapp = () => {
                      <div style={{ display: 'flex', gap: '5px', alignItems: 'center', background: isDarkMode ? '#78350f' : '#fef3c7', padding: '10px', borderRadius: '6px', border: `1px solid ${isDarkMode ? '#92400e' : '#fde68a'}` }}>
                         <strong style={{ color: isDarkMode ? '#fde68a' : '#d97706', fontSize: '14px' }}>🗳️ Évaluer le produit (1-5) :</strong>
                         <input type="number" min="1" max="5" placeholder="/ 5" value={notesVote[projet.id] || ''} onChange={(e) => setNotesVote({...notesVote, [projet.id]: e.target.value})} style={{ padding: '6px', width: '60px', borderRadius: '4px', border: `1px solid ${theme.border}`, background: theme.inputBg, color: theme.inputText }} />
-                        <button onClick={() => voterProjet(projet.id)} style={{ background: '#d97706', color: 'white', padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Voter</button>
+                        <button disabled={txEnCours} onClick={() => voterProjet(projet.id)} style={{ background: txEnCours ? '#9ca3af' : '#d97706', color: 'white', padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: txEnCours ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>Voter</button>
                      </div>
                   )}
 
                   {!projet.estAnnule && objectifAtteint && projet.phaseRetrait < 2 && (
-                      <button onClick={() => retirerFonds(projet.id)} style={{ background: '#10b981', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                      <button disabled={txEnCours} onClick={() => retirerFonds(projet.id)} style={{ background: txEnCours ? '#9ca3af' : '#10b981', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: txEnCours ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
                         {projet.phaseRetrait === 0 ? '🏆 Créateur : Retirer 50% (Phase 1)' : '🏆 Créateur : Retirer Reste (Phase 2)'}
                       </button>
                   )}
 
                   {!projet.estAnnule && projet.phaseRetrait < 2 && (
-                    <button onClick={() => annulerMonProjet(projet.id)} style={{ background: 'transparent', color: '#ef4444', padding: '8px 16px', border: '1px solid #ef4444', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>🚩 Créateur: Annuler le projet</button>
+                    <button disabled={txEnCours} onClick={() => annulerMonProjet(projet.id)} style={{ background: 'transparent', color: txEnCours ? '#9ca3af' : '#ef4444', padding: '8px 16px', border: `1px solid ${txEnCours ? '#9ca3af' : '#ef4444'}`, borderRadius: '4px', cursor: txEnCours ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold' }}>🚩 Créateur: Annuler le projet</button>
                   )}
 
                   {(projet.estAnnule || (estFini && !objectifAtteint)) && (
-                    <button onClick={() => demanderRemboursement(projet.id)} style={{ background: '#ef4444', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>🛡️ Investisseur: Demander Remboursement</button>
+                    <button disabled={txEnCours} onClick={() => demanderRemboursement(projet.id)} style={{ background: txEnCours ? '#9ca3af' : '#ef4444', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: txEnCours ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>🛡️ Investisseur: Demander Remboursement</button>
                   )}
 
                 </div>

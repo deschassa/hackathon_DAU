@@ -80,4 +80,5 @@ Le projet est configuré pour interagir avec le réseau **Testnet** d'Alephium.
 * **Mr_glace** : Développeur Web3 / Smart Contracts
 
 ---
-*Projet réalisé dans le cadre du Hackathon Hackin Dau 2026. Inspiré par le template "Livre d'or" et propulsé par Gemini.*
+*Projet réalisé dans le cadre du Hackathon Hackin Dau 2026. Inspiré par le template "https://github.com/alephium/react-dapp-template" et propulsé par Gemini.*
+
