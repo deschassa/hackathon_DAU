@@ -1,0 +1,41 @@
+Contract ForumSondage(
+    mut totalSondages: U256
+) {
+    mapping[U256, ByteVec] titres
+    mapping[U256, U256] votesPour
+
+    event NouveauSondage(id: U256, auteur: Address, titre: ByteVec)
+    event A_Vote(id: U256, votant: Address)
+
+    @using(updateFields = true, checkExternalCaller = false, preapprovedAssets = true)
+    pub fn creerSondage(titre: ByteVec) -> () {
+        let id = totalSondages
+        titres.insert!(id, titre)
+        votesPour.insert!(id, 0) 
+        totalSondages = totalSondages + 1
+        emit NouveauSondage(id, callerAddress!(), titre)
+    }
+
+    @using(updateFields = true, checkExternalCaller = false, preapprovedAssets = true)
+    pub fn voterPour(id: U256) -> () {
+        assert!(id < totalSondages, 0) 
+        let votesActuels = votesPour[id]
+        votesPour[id] = votesActuels + 1
+        emit A_Vote(id, callerAddress!())
+    }
+
+    // ==========================================
+    // 👓 LES LUNETTES (Fonctions de lecture pour ton site)
+    // ==========================================
+    pub fn getTotalSondages() -> U256 {
+        return totalSondages
+    }
+
+    pub fn getTitre(id: U256) -> ByteVec {
+        return titres[id]
+    }
+
+    pub fn getVotes(id: U256) -> U256 {
+        return votesPour[id]
+    }
+}
