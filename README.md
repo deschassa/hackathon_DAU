@@ -1,21 +1,19 @@
-# [vote_et_avis]
+# Crowfounding
 
-Un outil communautaire de [VOTE] décentralisé sur la blockchain Alephium.
+Un outil communautaire de [d'investissement] décentralisé sur la blockchain Alephium.
 
 ---
 
 
-
-
-## 🚀 Évolution du Projet (Hackathon)
+##  Évolution du Projet (Hackathon)
 - **V1 (Initial) :** Système de forum et de votes simples sur la blockchain.
 - **V2 (Actuelle) :** Pivot vers un système complet de Crowdfunding (Financement participatif) avec gestion du temps (TimeLocks), remboursements automatiques en cas d'échec, et retraits sécurisés pour les créateurs.
 
 
-## 💡 LE PROJET
+##  LE PROJET
 
-[Une manière de s'exprimer de manière simple et rapide adapter à Alephium].
-Ce projet permet à la communauté Alephium de [VOTER ] de manière transparente, sécurisée et sans intermédiaire, en utilisant la puissance du modèle sUTXO.
+[Investir de manière simple et rapide par Alephium].
+Ce projet permet à la communauté Alephium de [financer] de manière transparente, sécurisée et sans intermédiaire, en utilisant la puissance du modèle sUTXO.
 
 ### Pourquoi Alephium ?
 - Sécurité : Modèle sUTXO pour une gestion d'actifs infaillible.
@@ -24,7 +22,7 @@ Ce projet permet à la communauté Alephium de [VOTER ] de manière transparente
 
 ---
 
-## 🔗 LIENS UTILES
+##  LIENS UTILES
 
 - Démo en ligne : [pas_encore_disponible]
 - Adresse du contrat (Testnet) : [xRLgxuP211rUVprGbTdsJJtzSi6gcwLmKYCk2gER3CKq]
@@ -32,28 +30,29 @@ Ce projet permet à la communauté Alephium de [VOTER ] de manière transparente
 
 ---
 
-## 🛠️ INSTALLATION & LANCEMENT (LOCAL)
+##  INSTALLATION & LANCEMENT (LOCAL)
 
 Le projet est configuré pour interagir avec le réseau Testnet.
 
 1. Cloner le projet :
 git clone [https://github.com/deschassa/hackathon_DAU]
-cd [Ficus_carica]
+cd [hackathon_DAU]
 
 2. Installer les dépendances :
 npm install
+npm install dotenv
 
-3. Compiler les contrats Ralph :
-npx alph compile
+4. Compiler les contrats Ralph :
+npx @alephium/cli@latest compile --network testnet
 
-4. Lancer l'interface graphique :
+5. Lancer l'interface graphique :
 npm run dev
 
 Le site sera accessible sur : http://localhost:3000
 
 ---
 
-## 🏗️ ARCHITECTURE TECHNIQUE
+##  ARCHITECTURE TECHNIQUE
 
 - Smart Contracts : Situés dans /contracts, développés en Ralph.
 - Frontend : Situé dans /app (ou /src), développé avec Next.js et @alephium/web3.
@@ -62,10 +61,10 @@ Le site sera accessible sur : http://localhost:3000
 
 ---
 
-## 👥 ÉQUIPE
+##  ÉQUIPE
 
 - [Fulgrim] : Dev
--[Mr_glace] : Dev
+- [Mr_glace] : Dev
 
 ---
 
