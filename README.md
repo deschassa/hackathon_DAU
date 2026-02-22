@@ -45,9 +45,7 @@ Le projet est configuré pour interagir avec le réseau **Testnet** d'Alephium.
 
 **1. Cloner le projet :**
 
-    git clone [https://github.com/deschassa/hackathon_DAU.git](https://github.com/deschassa/hackathon_DAU.git)
-    cd hackathon_DAU
-
+    git clone https://github.com/deschassa/hackathon_DAU.git
 **2. Installer les dépendances :**
 
     npm install
@@ -67,7 +65,7 @@ Le projet est configuré pour interagir avec le réseau **Testnet** d'Alephium.
 ## 🏗️ Architecture Technique
 
 * **`/contracts` :** Cœur de la logique décentralisée. Contient le Smart Contract développé en Ralph (`ForumSondage.ral`).
-* **`/src` (ou `/app`) :** Interface utilisateur (Frontend) développée avec **React/Next.js** et connectée à la blockchain via `@alephium/web3`.
+* **( `/app`) :** Interface utilisateur (Frontend) développée avec **React/Next.js** et connectée à la blockchain via `@alephium/web3`.
 * **`/scripts` :** Scripts automatisés de déploiement sur le réseau Testnet.
 * **`/deployments` :** Stockage local de l'historique et des adresses des contrats déployés.
 
