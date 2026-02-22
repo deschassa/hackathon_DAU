@@ -51,8 +51,7 @@ Le projet est configuré pour interagir avec le réseau **Testnet** d'Alephium.
 **2. Installer les dépendances :**
 
     npm install
-    npm install dotenv
-
+    
 **3. Compiler les contrats Ralph :**
 
     npx @alephium/cli@latest compile --network testnet
