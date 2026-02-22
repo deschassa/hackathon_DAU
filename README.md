@@ -46,6 +46,8 @@ Le projet est configuré pour interagir avec le réseau **Testnet** d'Alephium.
 **1. Cloner le projet :**
 
     git clone https://github.com/deschassa/hackathon_DAU.git
+    cd hackathon_DAU
+    
 **2. Installer les dépendances :**
 
     npm install
