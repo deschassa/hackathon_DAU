@@ -7,18 +7,24 @@ import { ForumSondage } from '../../../artifacts/ts'
 import { toast, Toaster } from 'react-hot-toast' 
 
 export const TokenDapp = () => {
-  // ⚠️ NOUVELLE ADRESSE À COLLER ICI APRÈS LE DÉPLOIEMENT
-  const CONTRACT_ADDRESS = "xrviY8ywDPJ2QZNfPfHBnPcC4zoGSB4T2eqNN6cBAhWf" 
+  // 🎯 TON NOUVEAU CONTRAT DÉPLOYÉ
+  const CONTRACT_ADDRESS = "22fys9MKTsQkrPjz7RqmWyTsoB5Vg8ZA48PK9LnRZHXRR" 
   const contractGroup = groupOfAddress(CONTRACT_ADDRESS)
   const { signer, account } = useWallet() 
   
-  // États Formulaire
+  // États Formulaire de Création de Projet
   const [nouveauTitre, setNouveauTitre] = useState('')
   const [nouvelleDescription, setNouvelleDescription] = useState('')
   const [nouveauxLiens, setNouveauxLiens] = useState('')             
+  const [nouveauLienPrive, setNouveauLienPrive] = useState('') // 🔒 NOUVEAU : Lien secret
   const [nouvelObjectif, setNouvelObjectif] = useState('')
   const [nouvelleDuree, setNouvelleDuree] = useState('5')            
   const [nouveauxTags, setNouveauxTags] = useState('')
+
+  // 👨‍💻 États Formulaire Profil Créateur
+  const [monNomDev, setMonNomDev] = useState('')
+  const [monComDev, setMonComDev] = useState('')
+  const [monEmailDev, setMonEmailDev] = useState('')
   
   // États Actions
   const [montantsDon, setMontantsDon] = useState<{ [key: number]: string }>({})
@@ -33,10 +39,10 @@ export const TokenDapp = () => {
   const [ongletActif, setOngletActif] = useState('en_cours') 
   const [triActif, setTriActif] = useState('recent') 
   
-  // 🌟 NOUVEAU : État du profil investisseur
+  // Profil investisseur (Gamification)
   const [monProfil, setMonProfil] = useState({ nbVotes: 0, moyenne: 0, icone: '👤', titre: 'Nouvel Investisseur' })
 
-  // 🌓 MODE SOMBRE
+  // 🌓 MODE SOMBRE & THEME
   const [isDarkMode, setIsDarkMode] = useState(false)
 
   const theme = {
@@ -51,8 +57,9 @@ export const TokenDapp = () => {
     headerText: isDarkMode ? '#ccfbf1' : '#006064',
     headerBorder: isDarkMode ? '#115e59' : '#b2ebf2',
     infoBoxBg: isDarkMode ? '#374151' : '#f3f4f6',
-    profilBg: isDarkMode ? '#4c1d95' : '#ede9fe', // Nouvelle couleur pour le profil
+    profilBg: isDarkMode ? '#4c1d95' : '#ede9fe', 
     profilText: isDarkMode ? '#ddd6fe' : '#5b21b6',
+    devBg: isDarkMode ? '#1e293b' : '#f1f5f9',
   }
 
   useEffect(() => {
@@ -66,7 +73,7 @@ export const TokenDapp = () => {
     return () => clearInterval(timer)
   }, [])
 
-  // 🌟 NOUVEAU : Fonction pour charger le profil du joueur/investisseur
+  // === CHARGEMENT DES DONNÉES ===
   const chargerProfil = async () => {
     if (!account) return;
     try {
@@ -83,20 +90,12 @@ export const TokenDapp = () => {
         const moyenne = sommeNotes / nbVotes
         let icone = '⚖️'
         let titre = 'Investisseur Neutre'
-        
         if (moyenne >= 4.5) { icone = '👼'; titre = 'Ange Gardien' }
         else if (moyenne < 3) { icone = '😈'; titre = 'Critique Sévère' }
-        
         setMonProfil({ nbVotes, moyenne: moyenne.toFixed(1), icone, titre })
       }
-    } catch (e) { console.log("Profil non trouvé", e) }
+    } catch (e) { console.log("Profil investisseur non trouvé", e) }
   }
-
-  // On recharge les projets ET le profil au démarrage ou quand le compte change
-  useEffect(() => { 
-    chargerProjets(); 
-    chargerProfil(); 
-  }, [account])
 
   const chargerProjets = async () => {
     setChargement(true)
@@ -106,28 +105,50 @@ export const TokenDapp = () => {
       const totalResult = await ForumSondage.at(CONTRACT_ADDRESS).view.getTotalProjets()
       const total = Number(totalResult.returns)
       let projetsCharges = []
+      
       for(let i = 0; i < total; i++) {
-        const titreRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getTitre({ args: { id: BigInt(i) } })
-        const objRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getObjectif({ args: { id: BigInt(i) } })
-        const fondRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getFondsRecoltes({ args: { id: BigInt(i) } })
-        const deadRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getDeadline({ args: { id: BigInt(i) } })
-        const tagsRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getHashtags({ args: { id: BigInt(i) } })
-        const descRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getDescription({ args: { id: BigInt(i) } })
-        const liensRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getLiens({ args: { id: BigInt(i) } })
-        const annuleRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getEstAnnule({ args: { id: BigInt(i) } })
-        const phaseRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getPhaseRetrait({ args: { id: BigInt(i) } })
+        const id = BigInt(i)
+        // Infos de base
+        const titreRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getTitre({ args: { id } })
+        const objRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getObjectif({ args: { id } })
+        const fondRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getFondsRecoltes({ args: { id } })
+        const deadRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getDeadline({ args: { id } })
+        const tagsRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getHashtags({ args: { id } })
+        const descRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getDescription({ args: { id } })
+        const liensRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getLiens({ args: { id } })
+        const annuleRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getEstAnnule({ args: { id } })
+        const phaseRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getPhaseRetrait({ args: { id } })
+        const lienPriveRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getLienPrive({ args: { id } })
+        const createurRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getCreateur({ args: { id } })
+
+        const devAddress = createurRes.returns
         
+        // 👨‍💻 Infos du profil Créateur
+        const devNomRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getDevNom({ args: { dev: devAddress } })
+        const devComRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getDevCommentaire({ args: { dev: devAddress } })
+        const devEmailRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getDevEmail({ args: { dev: devAddress } })
+        const devRepRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getDevReputation({ args: { dev: devAddress } })
+        
+        const devNotesTotales = Number(devRepRes.returns[0])
+        const devQuorumTotal = Number(devRepRes.returns[1])
+        const devMoyenne = devQuorumTotal > 0 ? (devNotesTotales / devQuorumTotal).toFixed(1) : "N/A"
+
         projetsCharges.push({
           id: i,
           titre: hexToString(titreRes.returns),
           description: hexToString(descRes.returns),
-          liens: hexToString(liensRes.returns),      
+          liens: hexToString(liensRes.returns),
+          lienPrive: hexToString(lienPriveRes.returns),
           objectif: Number(objRes.returns) / 1e18,
           recolte: Number(fondRes.returns) / 1e18,
           deadline: Number(deadRes.returns),         
           hashtags: hexToString(tagsRes.returns), 
           estAnnule: annuleRes.returns,          
-          phaseRetrait: Number(phaseRes.returns) 
+          phaseRetrait: Number(phaseRes.returns),
+          devNom: hexToString(devNomRes.returns),
+          devCommentaire: hexToString(devComRes.returns),
+          devEmail: hexToString(devEmailRes.returns),
+          devMoyenne: devMoyenne
         })
       }
       setProjets(projetsCharges)
@@ -135,7 +156,28 @@ export const TokenDapp = () => {
     setChargement(false)
   }
 
+  useEffect(() => { chargerProjets(); chargerProfil(); }, [account])
+
   // === FONCTIONS D'ÉCRITURE ===
+  const enregistrerProfilDev = async () => {
+    if (!signer) return toast.error("⚠️ Connecte ton wallet !")
+    if (!monNomDev) return toast.error("Le nom est obligatoire.")
+    setTxEnCours(true)
+    const toastId = toast.loading('Mise à jour du profil...')
+    const node = new NodeProvider('https://wallet-v20.testnet.alephium.org')
+    web3.setCurrentNodeProvider(node)
+    try {
+      await ForumSondage.at(CONTRACT_ADDRESS).transact.mettreAJourProfilDev({
+        signer,
+        args: { nom: stringToHex(monNomDev), commentaire: stringToHex(monComDev), email: stringToHex(monEmailDev) },
+        attoAlphAmount: ONE_ALPH / 10n
+      })
+      toast.success(`Profil public mis à jour !`, { id: toastId })
+      setTimeout(chargerProjets, 3000)
+    } catch (e) { toast.error("Échec de la mise à jour.", { id: toastId }) }
+    finally { setTxEnCours(false) }
+  }
+
   const publierProjet = async () => {
       if (!signer || !account) return toast.error("⚠️ Connecte ton wallet Alephium !")
       if (!nouveauTitre || !nouvelObjectif) return toast.error("⚠️ Remplis au moins le titre et l'objectif !")
@@ -150,11 +192,19 @@ export const TokenDapp = () => {
         const dureeEnMs = BigInt(nouvelleDuree) * 60n * 1000n 
         await ForumSondage.at(CONTRACT_ADDRESS).transact.creerProjet({
           signer: signer,
-          args: { titre: stringToHex(nouveauTitre), description: stringToHex(nouvelleDescription), liensProjet: stringToHex(nouveauxLiens), tags: stringToHex(nouveauxTags.toLowerCase()), objectif: objectifEnAttoAlph, dureeEnMs: dureeEnMs },
+          args: { 
+            titre: stringToHex(nouveauTitre), 
+            description: stringToHex(nouvelleDescription), 
+            liensProjet: stringToHex(nouveauxLiens), 
+            lienPrive: stringToHex(nouveauLienPrive), // 🔒 Ajout du lien discord secret
+            tags: stringToHex(nouveauxTags.toLowerCase()), 
+            objectif: objectifEnAttoAlph, 
+            dureeEnMs: dureeEnMs 
+          },
           attoAlphAmount: ONE_ALPH / 10n 
         })
         toast.success(`🎉 PROJET CRÉÉ ! Validité : ${nouvelleDuree} minutes.`, { id: toastId })
-        setNouveauTitre(''); setNouvelleDescription(''); setNouveauxLiens(''); setNouvelObjectif(''); setNouvelleDuree('5'); setNouveauxTags('');
+        setNouveauTitre(''); setNouvelleDescription(''); setNouveauxLiens(''); setNouveauLienPrive(''); setNouvelObjectif(''); setNouvelleDuree('5'); setNouveauxTags('');
         setTimeout(chargerProjets, 3000)
       } catch (error) { toast.error("❌ Échec de la création.", { id: toastId }) } 
       finally { setTxEnCours(false) }
@@ -173,7 +223,7 @@ export const TokenDapp = () => {
     try {
       const montantEnAttoAlph = BigInt(Math.floor(Number(montantSaisi) * 1e18))
       await ForumSondage.at(CONTRACT_ADDRESS).transact.financerProjet({ signer: signer, args: { id: BigInt(projetId), montant: montantEnAttoAlph }, attoAlphAmount: montantEnAttoAlph + (ONE_ALPH / 10n) })
-      toast.success(`💸 Don de ${montantSaisi} ALPH envoyé avec succès !`, { id: toastId })
+      toast.success(`💸 Don de ${montantSaisi} ALPH envoyé ! Tu as débloqué l'accès privé.`, { id: toastId })
       setTimeout(chargerProjets, 3000)
     } catch (e) { toast.error("Erreur : Projet expiré ou annulé.", { id: toastId }) } 
     finally { setTxEnCours(false) }
@@ -189,7 +239,7 @@ export const TokenDapp = () => {
       await ForumSondage.at(CONTRACT_ADDRESS).transact.retirerFonds({ signer: signer, args: { id: BigInt(projetId) }, attoAlphAmount: ONE_ALPH / 10n })
       toast.success(`🏆 SUCCÈS ! Les fonds ont été virés sur ton wallet !`, { id: toastId })
       setTimeout(chargerProjets, 3000)
-    } catch (e) { toast.error("Erreur : Créateur invalide ou conditions (Vote < 3/5) non remplies.", { id: toastId }) } 
+    } catch (e) { toast.error("Erreur de retrait.", { id: toastId }) } 
     finally { setTxEnCours(false) }
   }
 
@@ -201,7 +251,7 @@ export const TokenDapp = () => {
     web3.setCurrentNodeProvider(node)
     try {
       await ForumSondage.at(CONTRACT_ADDRESS).transact.annulerProjet({ signer: signer, args: { id: BigInt(projetId) }, attoAlphAmount: ONE_ALPH / 10n })
-      toast.success(`🚩 Projet annulé ! Les investisseurs peuvent se rembourser.`, { id: toastId })
+      toast.success(`🚩 Projet annulé !`, { id: toastId })
       setTimeout(chargerProjets, 3000)
     } catch (e) { toast.error("Erreur d'annulation.", { id: toastId }) } 
     finally { setTxEnCours(false) }
@@ -218,8 +268,8 @@ export const TokenDapp = () => {
     try {
       await ForumSondage.at(CONTRACT_ADDRESS).transact.voterPourPhaseDeux({ signer: signer, args: { id: BigInt(projetId), note: BigInt(note) }, attoAlphAmount: ONE_ALPH / 10n })
       toast.success(`⭐ Ton vote a été enregistré !`, { id: toastId })
-      setTimeout(() => { chargerProjets(); chargerProfil(); }, 3000) // On recharge aussi le profil !
-    } catch (e) { toast.error("Erreur : Tu as déjà voté ou tu n'as pas investi.", { id: toastId }) } 
+      setTimeout(() => { chargerProjets(); chargerProfil(); }, 3000) 
+    } catch (e) { toast.error("Erreur lors du vote.", { id: toastId }) } 
     finally { setTxEnCours(false) }
   }
 
@@ -233,11 +283,11 @@ export const TokenDapp = () => {
       await ForumSondage.at(CONTRACT_ADDRESS).transact.rembourser({ signer: signer, args: { id: BigInt(projetId) }, attoAlphAmount: ONE_ALPH / 10n })
       toast.success(`🛡️ REMBOURSÉ ! L'argent est de retour.`, { id: toastId })
       setTimeout(chargerProjets, 3000)
-    } catch (e) { toast.error("Erreur : Le projet n'a pas échoué, n'est pas annulé, ou le vote est suffisant.", { id: toastId }) } 
+    } catch (e) { toast.error("Erreur : Conditions de remboursement non remplies.", { id: toastId }) } 
     finally { setTxEnCours(false) }
   }
 
-  // === FILTRAGE, ONGLETS ET TRI ===
+  // === FILTRAGE ===
   const tousLesTagsDisponibles = Array.from(new Set(projets.flatMap(p => p.hashtags ? p.hashtags.split(' ') : []))).filter(tag => tag.startsWith('#'))
   const projetsFiltresParTags = filtreActif ? projets.filter(p => p.hashtags && p.hashtags.includes(filtreActif)) : projets;
 
@@ -270,26 +320,39 @@ export const TokenDapp = () => {
         </button>
       </div>
 
-      {/* 🌟 BANNIÈRE DU HAUT : INFO + GAMIFICATION */}
+      {/* 🌟 BANNIÈRE DU HAUT : INFO + GAMIFICATION + DEV */}
       <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '20px' }}>
         
         {/* Info Système */}
-        <div style={{ flex: 2, padding: '15px', background: theme.headerBg, color: theme.headerText, borderRadius: '8px', border: `1px solid ${theme.headerBorder}` }}>
+        <div style={{ flex: 1, minWidth: '300px', padding: '15px', background: theme.headerBg, color: theme.headerText, borderRadius: '8px', border: `1px solid ${theme.headerBorder}` }}>
           <h3 style={{ margin: '0 0 10px 0' }}>🚀 Trustless Launchpad</h3>
-          <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '16px' }}>
+          <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '14px' }}>
             <li>Univers du Contrat : <strong>Groupe {contractGroup}</strong></li>
             <li>Ton Wallet : <strong>{account ? `Groupe ${account.group}` : 'Non connecté'}</strong></li>
           </ul>
         </div>
 
-        {/* 🌟 NOUVEAU : Carte de Réputation (S'affiche si connecté) */}
+        {/* 👨‍💻 NOUVEAU : Profil Créateur */}
         {account && (
-          <div style={{ flex: 1, minWidth: '250px', padding: '15px', background: theme.profilBg, color: theme.profilText, borderRadius: '8px', border: `1px solid ${theme.profilText}`, textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ flex: 1, minWidth: '300px', padding: '15px', background: theme.cardBg, borderRadius: '8px', border: `1px solid ${theme.border}` }}>
+             <h4 style={{ margin: '0 0 10px 0' }}>⚙️ Mon Profil Créateur</h4>
+             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+               <input type="text" placeholder="Nom public (ex: Alice)" value={monNomDev} onChange={(e) => setMonNomDev(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: `1px solid ${theme.border}`, background: theme.inputBg, color: theme.inputText }} />
+               <input type="text" placeholder="Bio / Commentaire" value={monComDev} onChange={(e) => setMonComDev(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: `1px solid ${theme.border}`, background: theme.inputBg, color: theme.inputText }} />
+               <input type="text" placeholder="Contact (Optionnel)" value={monEmailDev} onChange={(e) => setMonEmailDev(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: `1px solid ${theme.border}`, background: theme.inputBg, color: theme.inputText }} />
+               <button disabled={txEnCours} onClick={enregistrerProfilDev} style={{ background: '#6366f1', color: 'white', padding: '8px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Mettre à jour mon profil</button>
+             </div>
+          </div>
+        )}
+
+        {/* 👤 Profil Investisseur */}
+        {account && (
+          <div style={{ flex: 1, minWidth: '200px', padding: '15px', background: theme.profilBg, color: theme.profilText, borderRadius: '8px', border: `1px solid ${theme.profilText}`, textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <div style={{ fontSize: '30px', marginBottom: '5px' }}>{monProfil.icone}</div>
             <strong style={{ fontSize: '18px' }}>{monProfil.titre}</strong>
             <div style={{ marginTop: '8px', fontSize: '14px', opacity: 0.9 }}>
               {monProfil.nbVotes > 0 ? (
-                <>Moyenne : <strong>{monProfil.moyenne} / 5</strong> (sur {monProfil.nbVotes} votes)</>
+                <>Moyenne : <strong>{monProfil.moyenne} / 5</strong> ({monProfil.nbVotes} votes)</>
               ) : (
                 <>Tu n'as pas encore voté.</>
               )}
@@ -308,7 +371,12 @@ export const TokenDapp = () => {
             <input type="number" placeholder="Durée (Minutes)" value={nouvelleDuree} onChange={(e) => setNouvelleDuree(e.target.value)} style={{ flex: 1, minWidth: '120px', padding: '10px', borderRadius: '4px', border: `1px solid ${theme.border}`, background: theme.inputBg, color: theme.inputText }} />
           </div>
           <input type="text" placeholder="Description courte du projet" value={nouvelleDescription} onChange={(e) => setNouvelleDescription(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: `1px solid ${theme.border}`, background: theme.inputBg, color: theme.inputText }} />
-          <input type="text" placeholder="Liens utiles (ex: github.com/projet)" value={nouveauxLiens} onChange={(e) => setNouveauxLiens(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: `1px solid ${theme.border}`, background: theme.inputBg, color: theme.inputText }} />
+          
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <input type="text" placeholder="Liens utiles (ex: github.com/projet)" value={nouveauxLiens} onChange={(e) => setNouveauxLiens(e.target.value)} style={{ flex: 1, padding: '10px', borderRadius: '4px', border: `1px solid ${theme.border}`, background: theme.inputBg, color: theme.inputText }} />
+            <input type="text" placeholder="🔒 Lien privé (ex: Discord pour investisseurs)" value={nouveauLienPrive} onChange={(e) => setNouveauLienPrive(e.target.value)} style={{ flex: 1, padding: '10px', borderRadius: '4px', border: `1px dashed #6366f1`, background: theme.inputBg, color: theme.inputText }} />
+          </div>
+
           <input type="text" placeholder="Hashtags (ex: #web3 #gaming)" value={nouveauxTags} onChange={(e) => setNouveauxTags(e.target.value)} style={{ padding: '10px', borderRadius: '4px', border: `1px solid ${theme.border}`, background: theme.inputBg, color: theme.inputText }} />
           <button disabled={txEnCours} onClick={publierProjet} style={{ padding: '12px 24px', background: txEnCours ? '#9ca3af' : '#0070f3', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: txEnCours ? 'not-allowed' : 'pointer', alignSelf: 'flex-start' }}>
             {txEnCours ? '⏳ Transaction...' : 'Créer le projet'}
@@ -323,7 +391,7 @@ export const TokenDapp = () => {
           <button onClick={chargerProjets} style={{ padding: '8px 16px', background: '#6c757d', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>🔄 Rafraîchir</button>
         </div>
 
-        {/* 🗂️ ONGLETS & 🌟 MENU DE TRI */}
+        {/* 🗂️ ONGLETS & MENU DE TRI */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: `2px solid ${theme.border}`, paddingBottom: '10px', flexWrap: 'wrap', gap: '15px' }}>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button onClick={() => setOngletActif('en_cours')} style={{ padding: '10px 20px', background: ongletActif === 'en_cours' ? '#0070f3' : 'transparent', color: ongletActif === 'en_cours' ? 'white' : theme.textMuted, border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>🟢 En cours</button>
@@ -333,11 +401,7 @@ export const TokenDapp = () => {
           
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <span style={{ fontSize: '14px', fontWeight: 'bold', color: theme.text }}>Trier :</span>
-            <select 
-              value={triActif} 
-              onChange={(e) => setTriActif(e.target.value)}
-              style={{ padding: '8px 12px', borderRadius: '6px', border: `1px solid ${theme.border}`, background: theme.inputBg, color: theme.inputText, cursor: 'pointer' }}
-            >
+            <select value={triActif} onChange={(e) => setTriActif(e.target.value)} style={{ padding: '8px 12px', borderRadius: '6px', border: `1px solid ${theme.border}`, background: theme.inputBg, color: theme.inputText, cursor: 'pointer' }}>
               <option value="recent">✨ Plus récents</option>
               <option value="plus_finances">🔥 Plus financés (%)</option>
               <option value="fin_proche">⏳ Se termine bientôt</option>
@@ -353,15 +417,6 @@ export const TokenDapp = () => {
             {tousLesTagsDisponibles.map(tag => (
               <button key={tag} onClick={() => setFiltreActif(tag)} style={{ padding: '6px 12px', margin: '0 5px', borderRadius: '20px', border: filtreActif === tag ? 'none' : `1px solid ${theme.border}`, background: filtreActif === tag ? '#10b981' : theme.inputBg, color: filtreActif === tag ? 'white' : theme.text, cursor: 'pointer' }}>{tag}</button>
             ))}
-          </div>
-        )}
-
-        {/* EMPTY STATE */}
-        {!chargement && projetsAffiches.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '40px 20px', background: theme.cardBg, borderRadius: '8px', border: `1px dashed ${theme.border}`, color: theme.textMuted }}>
-             <p style={{ fontSize: '40px', margin: '0 0 10px 0' }}>{ongletActif === 'en_cours' ? '🌱' : ongletActif === 'termines' ? '🏆' : '🍃'}</p>
-             <p style={{ fontSize: '18px', fontWeight: 'bold' }}>Aucun projet ici pour le moment.</p>
-             {ongletActif === 'en_cours' && <p>Soyez le premier à lancer une idée !</p>}
           </div>
         )}
 
@@ -399,18 +454,32 @@ export const TokenDapp = () => {
                   )}
                 </div>
 
-                {projet.hashtags && (
-                  <div style={{ marginTop: '10px' }}>
-                    {projet.hashtags.split(' ').map((tag: string) => tag.startsWith('#') && (
-                      <span key={tag} style={{ background: isDarkMode ? '#3730a3' : '#e0e7ff', color: isDarkMode ? '#e0e7ff' : '#4f46e5', padding: '4px 8px', borderRadius: '12px', fontSize: '12px', marginRight: '5px', fontWeight: 'bold', display: 'inline-block', marginBottom: '5px' }}>{tag}</span>
-                    ))}
+                {/* 👨‍💻 BLOC PROFIL CRÉATEUR */}
+                <div style={{ marginTop: '15px', padding: '10px', background: theme.devBg, borderRadius: '6px', borderLeft: '4px solid #6366f1' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                     <strong style={{ fontSize: '14px', color: '#6366f1' }}>👨‍💻 Créateur : {projet.devNom}</strong>
+                     <span style={{ fontSize: '12px', fontWeight: 'bold', background: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: '10px' }}>
+                       ⭐ Note Globale : {projet.devMoyenne}/5
+                     </span>
                   </div>
-                )}
+                  <p style={{ fontSize: '12px', margin: '5px 0', fontStyle: 'italic' }}>"{projet.devCommentaire}"</p>
+                  {projet.devEmail && <p style={{ fontSize: '11px', color: theme.textMuted }}>📧 {projet.devEmail}</p>}
+                </div>
 
                 <div style={{ fontSize: '14px', color: theme.textMuted, margin: '15px 0', padding: '10px', background: theme.infoBoxBg, borderRadius: '6px' }}>
                   <p style={{ margin: '0 0 5px 0' }}>📝 <strong>À propos :</strong> {projet.description || 'Aucune description'}</p>
                   <p style={{ margin: 0 }}>🔗 <strong>Liens :</strong> <span style={{ color: '#3b82f6', wordBreak: 'break-all' }}>{projet.liens || 'Aucun lien fourni'}</span></p>
                 </div>
+
+                {/* 🔒 TOKEN-GATING : ACCÈS DISCORD */}
+                {projet.lienPrive && projet.recolte > 0 && (
+                  <div style={{ marginTop: '15px', padding: '12px', background: '#5865F2', color: 'white', borderRadius: '6px', textAlign: 'center' }}>
+                    <p style={{ margin: '0 0 5px 0', fontWeight: 'bold' }}>🎉 Accès Privé Investisseurs</p>
+                    <a href={projet.lienPrive.startsWith('http') ? projet.lienPrive : `https://${projet.lienPrive}`} target="_blank" rel="noreferrer" style={{ color: 'white', fontWeight: 'bold', textDecoration: 'underline' }}>
+                      Rejoindre la communauté de ce projet
+                    </a>
+                  </div>
+                )}
 
                 <div style={{ margin: '15px 0' }}>
                   <strong>{projet.recolte} ALPH</strong> / {projet.objectif} ALPH
@@ -447,7 +516,6 @@ export const TokenDapp = () => {
                   )}
 
                   {(projet.estAnnule || (estFini && !objectifAtteint) || (projet.phaseRetrait === 1)) && (
-                    // On modifie l'affichage pour montrer que les investisseurs peuvent forcer le remboursement si échec
                     <button disabled={txEnCours} onClick={() => demanderRemboursement(projet.id)} style={{ background: txEnCours ? '#9ca3af' : '#ef4444', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: txEnCours ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>🛡️ Investisseur: Demander Remboursement</button>
                   )}
 
@@ -460,4 +528,3 @@ export const TokenDapp = () => {
     </div>
   )
 }
-

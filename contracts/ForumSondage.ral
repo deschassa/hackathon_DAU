@@ -1,7 +1,11 @@
 Contract ForumSondage(
     mut totalProjets: U256
 ) {
-    // --- VARIABLES DE BASE ---
+    // ==========================================
+    // 🗃️ BASES DE DONNÉES (MAPPINGS)
+    // ==========================================
+    
+    // --- 1. Projets ---
     mapping[U256, ByteVec] titres
     mapping[U256, ByteVec] descriptions 
     mapping[U256, ByteVec] liens        
@@ -12,18 +16,27 @@ Contract ForumSondage(
     mapping[U256, U256] deadlines       
     mapping[ByteVec, U256] donsParDonateur 
 
-    // --- MILESTONES & SÉCURITÉ ---
+    // --- 2. Milestones & Sécurité ---
     mapping[U256, Bool] estAnnule           
     mapping[U256, U256] phasesRetrait       
     mapping[U256, U256] notesPonderees      
     mapping[ByteVec, Bool] aVote            
-    mapping[U256, U256] fondsVotants        // ⚖️ NOUVEAU: Total des ALPH ayant participé au vote
+    mapping[U256, U256] fondsVotants        
 
-    // --- PROFILAGE DES INVESTISSEURS (GAMIFICATION) ---
-    mapping[Address, U256] profilNbVotes    // 👤 NOUVEAU: Combien de fois ce wallet a voté
-    mapping[Address, U256] profilSommeNotes // 📊 NOUVEAU: Somme totale des notes données
+    // --- 3. Profils Investisseurs (Gamification) ---
+    mapping[Address, U256] profilNbVotes    
+    mapping[Address, U256] profilSommeNotes 
 
-    // --- EVENTS ---
+    // --- 4. Profils Créateurs (Annuaire de Confiance) ---
+    mapping[Address, ByteVec] devNoms
+    mapping[Address, ByteVec] devCommentaires
+    mapping[Address, ByteVec] devEmails
+    mapping[Address, U256] devGlobalNotes    // ⭐ Somme des notes sur tous les projets du dev
+    mapping[Address, U256] devGlobalPoids    // ⚖️ Somme du quorum sur tous les projets du dev
+
+    // ==========================================
+    // 📢 EVENTS (NOTIFICATIONS)
+    // ==========================================
     event NouveauProjet(id: U256, createur: Address, titre: ByteVec)
     event DonRecu(id: U256, donateur: Address, montant: U256)
     event PhaseDebloquee(id: U256, phase: U256, montant: U256)
@@ -31,7 +44,24 @@ Contract ForumSondage(
     event VoteEnregistre(id: U256, donateur: Address, note: U256)
 
     // ==========================================
-    // ✍️ 1. CRÉATION
+    // 👨‍💻 FONCTION 0 : INITIALISER SON PROFIL CRÉATEUR
+    // ==========================================
+    @using(updateFields = true, checkExternalCaller = false)
+    pub fn mettreAJourProfilDev(nom: ByteVec, commentaire: ByteVec, email: ByteVec) -> () {
+        let caller = callerAddress!()
+        devNoms.insert!(caller, nom)
+        devCommentaires.insert!(caller, commentaire)
+        devEmails.insert!(caller, email)
+        
+        // Initialisation des jauges de réputation si c'est la première fois
+        if (!devGlobalNotes.contains!(caller)) {
+            devGlobalNotes.insert!(caller, 0)
+            devGlobalPoids.insert!(caller, 0)
+        }
+    }
+
+    // ==========================================
+    // ✍️ FONCTION 1 : CRÉATION DU PROJET
     // ==========================================
     @using(updateFields = true, checkExternalCaller = false, preapprovedAssets = true)
     pub fn creerProjet(titre: ByteVec, description: ByteVec, liensProjet: ByteVec, tags: ByteVec, objectif: U256, dureeEnMs: U256) -> () {
@@ -48,14 +78,14 @@ Contract ForumSondage(
         estAnnule.insert!(id, false)
         phasesRetrait.insert!(id, 0)
         notesPonderees.insert!(id, 0)
-        fondsVotants.insert!(id, 0) // Initialisation du quorum
+        fondsVotants.insert!(id, 0) 
         
         totalProjets = totalProjets + 1
         emit NouveauProjet(id, callerAddress!(), titre)
     }
 
     // ==========================================
-    // 💸 2. FINANCEMENT
+    // 💸 FONCTION 2 : FINANCEMENT
     // ==========================================
     @using(updateFields = true, checkExternalCaller = false, preapprovedAssets = true, assetsInContract = true)
     pub fn financerProjet(id: U256, montant: U256) -> () {
@@ -77,7 +107,7 @@ Contract ForumSondage(
     }
 
     // ==========================================
-    // ⭐ 3. GOUVERNANCE : LE VOTE & PROFILAGE
+    // ⭐ FONCTION 3 : GOUVERNANCE & RÉPUTATION
     // ==========================================
     @using(updateFields = true, checkExternalCaller = false)
     pub fn voterPourPhaseDeux(id: U256, note: U256) -> () {
@@ -92,12 +122,21 @@ Contract ForumSondage(
         
         aVote.insert!(cleRecu, true)
         
-        // 1. Mise à jour des stats du projet
-        let poidsVote = donsParDonateur[cleRecu] * note
-        notesPonderees[id] = notesPonderees[id] + poidsVote
-        fondsVotants[id] = fondsVotants[id] + donsParDonateur[cleRecu] // On ajoute le poids de l'investisseur au quorum
+        let montantInvesti = donsParDonateur[cleRecu]
+        let poidsVote = montantInvesti * note
+        let dev = createurs[id]
         
-        // 2. Mise à jour du Profil de l'investisseur
+        // 1. Mise à jour des stats du projet
+        notesPonderees[id] = notesPonderees[id] + poidsVote
+        fondsVotants[id] = fondsVotants[id] + montantInvesti 
+        
+        // 2. Mise à jour de la réputation globale du Développeur (S'il a un profil)
+        if (devGlobalNotes.contains!(dev)) {
+            devGlobalNotes[dev] = devGlobalNotes[dev] + poidsVote
+            devGlobalPoids[dev] = devGlobalPoids[dev] + montantInvesti
+        }
+        
+        // 3. Mise à jour du Profil de l'Investisseur
         if (profilNbVotes.contains!(caller)) {
             profilNbVotes[caller] = profilNbVotes[caller] + 1
             profilSommeNotes[caller] = profilSommeNotes[caller] + note
@@ -110,7 +149,7 @@ Contract ForumSondage(
     }
 
     // ==========================================
-    // 🏆 4. LE RETRAIT EN DEUX TEMPS (MILESTONES)
+    // 🏆 FONCTION 4 : LE RETRAIT (MILESTONES)
     // ==========================================
     @using(updateFields = true, checkExternalCaller = false, assetsInContract = true)
     pub fn retirerFonds(id: U256) -> () {
@@ -138,7 +177,7 @@ Contract ForumSondage(
     }
 
     // ==========================================
-    // 🛑 5. SÉCURITÉ : ANNULATION & REMBOURSEMENT SÉCURISÉ
+    // 🛑 FONCTION 5 : SÉCURITÉ & REMBOURSEMENT
     // ==========================================
     @using(updateFields = true, checkExternalCaller = false)
     pub fn annulerProjet(id: U256) -> () {
@@ -155,16 +194,13 @@ Contract ForumSondage(
         let tempsEcoule = blockTimeStamp!() >= deadlines[id]
         let objectifRate = fondsRecoltes[id] < objectifs[id]
         
-        // 🚀 NOUVEAUTÉ : Vérification de l'échec du vote (Quorum 90% + Note < 3)
         let mut echecVote = false
         if (phasesRetrait[id] == 1) {
-            // (fondsVotants * 100) >= (fondsRecoltes * 90) évite les nombres à virgule !
             let quorumAtteint = (fondsVotants[id] * 100) >= (fondsRecoltes[id] * 90)
             let noteMauvaise = notesPonderees[id] < (fondsVotants[id] * 3)
             echecVote = quorumAtteint && noteMauvaise
         }
         
-        // On rembourse si annulé, ou si raté, OU si le vote a échoué !
         assert!(estAnnule[id] || (tempsEcoule && objectifRate) || echecVote, 13) 
         
         let cleRecu = blake2b!(toByteVec!(id) ++ toByteVec!(callerAddress!()))
@@ -181,7 +217,9 @@ Contract ForumSondage(
         transferTokenFromSelf!(callerAddress!(), ALPH, montantARembourser)
     }
 
-    // --- GETTERS (Mise à jour pour le Frontend) ---
+    // ==========================================
+    // 🔍 GETTERS (LECTURE DES DONNÉES)
+    // ==========================================
     pub fn getTotalProjets() -> U256 { return totalProjets }
     pub fn getTitre(id: U256) -> ByteVec { return titres[id] }
     pub fn getObjectif(id: U256) -> U256 { return objectifs[id] }
@@ -192,9 +230,10 @@ Contract ForumSondage(
     pub fn getDeadline(id: U256) -> U256 { return deadlines[id] }
     pub fn getEstAnnule(id: U256) -> Bool { return estAnnule[id] } 
     pub fn getPhaseRetrait(id: U256) -> U256 { return phasesRetrait[id] } 
-    
-    // Nouveaux Getters
     pub fn getFondsVotants(id: U256) -> U256 { return fondsVotants[id] } 
+    pub fn getCreateur(id: U256) -> Address { return createurs[id] }
+
+    // --- Getters : Profil Investisseur ---
     pub fn getProfilNbVotes(investisseur: Address) -> U256 { 
         if (profilNbVotes.contains!(investisseur)) { return profilNbVotes[investisseur] } 
         else { return 0 }
@@ -202,5 +241,23 @@ Contract ForumSondage(
     pub fn getProfilSommeNotes(investisseur: Address) -> U256 { 
         if (profilSommeNotes.contains!(investisseur)) { return profilSommeNotes[investisseur] } 
         else { return 0 }
+    }
+
+    // --- Getters : Profil Créateur ---
+    pub fn getDevNom(dev: Address) -> ByteVec { 
+        if (devNoms.contains!(dev)) { return devNoms[dev] }
+        else { return b`Anonyme` }
+    }
+    pub fn getDevCommentaire(dev: Address) -> ByteVec { 
+        if (devCommentaires.contains!(dev)) { return devCommentaires[dev] }
+        else { return b`Pas de description` }
+    }
+    pub fn getDevEmail(dev: Address) -> ByteVec { 
+        if (devEmails.contains!(dev)) { return devEmails[dev] }
+        else { return b`` }
+    }
+    pub fn getDevReputation(dev: Address) -> (U256, U256) {
+        if (devGlobalNotes.contains!(dev)) { return devGlobalNotes[dev], devGlobalPoids[dev] }
+        else { return 0, 0 } // Retourne (NotesTotales, QuorumTotal) pour calculer la moyenne côté React
     }
 }
