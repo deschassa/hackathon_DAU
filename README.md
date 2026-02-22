@@ -1,4 +1,4 @@
-# 🚀 Trustless Launchpad (Alephium Crowdfunding)
+#  Trustless Launchpad (Alephium Crowdfunding)
 
 **A decentralized and secure community investment platform built on the Alephium blockchain.**
 
@@ -6,20 +6,20 @@ Developed for the **Hackin' DAU 2026 Hackathon** (Track: Community).
 
 ---
 
-## 🎯 The Project
+##  The Project
 
 **Invest and raise funds simply, quickly, and without blind trust (Trustless).**
 
 This project empowers the Alephium community to fund projects transparently, securely, and without any intermediaries. Say goodbye to "Rug Pulls" or creators disappearing with the treasury: our smart contract protects investors through a milestone-based fund release system and automated refunds.
 
-### ⚡ Why Alephium?
+###  Why Alephium?
 * **Security (sUTXO):** Bulletproof asset management thanks to the native sUTXO model. Funds are managed directly by the blockchain.
 * **Reliability (Ralph):** Smart contracts written in Ralph, leveraging the Asset Permission System (APS) to prevent common vulnerabilities by design.
 * **Performance:** Lightning-fast transactions with minimal fees, making it ideal for community micro-funding.
 
 ---
 
-## 📈 Project Evolution (Hackathon Sprint)
+## Project Evolution (Hackathon Sprint)
 
 * **V1:** Simple on-chain forum and voting system.
 * **V2:** Pivot to a full Crowdfunding ecosystem with time management (TimeLocks).
@@ -30,7 +30,7 @@ This project empowers the Alephium community to fund projects transparently, sec
 
 ---
 
-## 🔗 Useful Links
+##  Useful Links
 
 * **GitHub Repository:** [https://github.com/deschassa/hackathon_DAU](https://github.com/deschassa/hackathon_DAU)
 * **Contract Address (Testnet):** xRLgxuP211rUVprGbTdsJJtzSi6gcwLmKYCk2gER3CKq
@@ -38,7 +38,7 @@ This project empowers the Alephium community to fund projects transparently, sec
 
 ---
 
-## 💻 Setup & Local Launch
+##  Setup & Local Launch
 
 The project is configured to interact with the Alephium **Testnet** network.
 
@@ -55,11 +55,11 @@ npx @alephium/cli@latest compile --network testnet
 **4. Run the frontend development server:**
 npm run dev
 
-🌐 *The application will be available at:* http://localhost:3000
+ *The application will be available at:* http://localhost:3000
 
 ---
 
-## 🏗️ Technical Architecture
+##  Technical Architecture
 
 * **/contracts:** Core decentralized logic. Contains the Smart Contract written in Ralph (ForumSondage.ral).
 * **/src/app & /src/components:** Frontend user interface built with React/Next.js and connected to the blockchain via @alephium/web3-react.
@@ -68,7 +68,7 @@ npm run dev
 
 ---
 
-## 👥 Team
+##  Team
 
 * **Fulgrim**: Web3 / Smart Contract Developer
 * **Mr_glace**: Web3 / Smart Contract Developer
@@ -76,7 +76,7 @@ npm run dev
 ---
 *Project built for the Hackin' DAU 2026 Hackathon. Inspired by the Alephium react-dapp-template and powered by Gemini.*
 
-# 🚀 Trustless Launchpad (Alephium Crowdfunding)
+#  Trustless Launchpad (Alephium Crowdfunding)
 
 **Une plateforme communautaire d'investissement décentralisé et sécurisé sur la blockchain Alephium.**
 
@@ -84,20 +84,20 @@ Développé dans le cadre du **Hackathon Hackin Dau 2026** (Track : Communauté)
 
 ---
 
-## 🎯 Le Projet
+##  Le Projet
 
 **Investir et lever des fonds de manière simple, rapide et sans confiance aveugle (Trustless).**
 
 Ce projet permet à la communauté Alephium de financer des projets de manière transparente, sécurisée et sans aucun intermédiaire. Fini les "Rug Pulls" ou les créateurs qui disparaissent avec la caisse : notre contrat intelligent protège les investisseurs grâce à un système de libération des fonds par étapes et de remboursements automatisés.
 
-### ⚡ Pourquoi Alephium ?
+###  Pourquoi Alephium ?
 * **Sécurité (sUTXO) :** Gestion des actifs infaillible grâce au modèle sUTXO natif. Les fonds sont gérés directement par la blockchain.
 * **Fiabilité (Ralph) :** Smart contracts écrits en Ralph, conçus avec l'Asset Permission System (APS) pour éviter les failles classiques.
 * **Performance :** Transactions rapides et frais minimes, idéals pour le micro-financement communautaire.
 
 ---
 
-## 📈 Évolution du Projet (Sprint Hackathon)
+##  Évolution du Projet (Sprint Hackathon)
 
 * **V1 :** Système de forum et de votes simples sur la blockchain.
 * **V2 :** Pivot vers un système complet de Crowdfunding avec gestion du temps (TimeLocks).
@@ -108,7 +108,7 @@ Ce projet permet à la communauté Alephium de financer des projets de manière 
 
 ---
 
-## 🔗 Liens Utiles
+##  Liens Utiles
 
 * **Dépôt GitHub :** [Voir le code source](https://github.com/deschassa/hackathon_DAU)
 * **Adresse du contrat (Testnet) :** `xRLgxuP211rUVprGbTdsJJtzSi6gcwLmKYCk2gER3CKq`
@@ -117,7 +117,7 @@ Ce projet permet à la communauté Alephium de financer des projets de manière 
 
 ---
 
-## 💻 Installation & Lancement (Local)
+##  Installation & Lancement (Local)
 
 Le projet est configuré pour interagir avec le réseau **Testnet** d'Alephium.
 
@@ -138,11 +138,11 @@ Le projet est configuré pour interagir avec le réseau **Testnet** d'Alephium.
 
     npm run dev
 
-🌐 *Le site sera accessible sur :* [http://localhost:3000](http://localhost:3000)
+ *Le site sera accessible sur :* [http://localhost:3000](http://localhost:3000)
 
 ---
 
-## 🏗️ Architecture Technique
+##  Architecture Technique
 
 * **`/contracts` :** Cœur de la logique décentralisée. Contient le Smart Contract développé en Ralph (`ForumSondage.ral`).
 * **( `/app`) :** Interface utilisateur (Frontend) développée avec **React/Next.js** et connectée à la blockchain via `@alephium/web3`.
@@ -151,7 +151,7 @@ Le projet est configuré pour interagir avec le réseau **Testnet** d'Alephium.
 
 ---
 
-## 👥 Équipe
+##  Équipe
 
 * **Fulgrim** : Développeur Web3 / Smart Contracts
 * **Mr_glace** : Développeur Web3 / Smart Contracts
