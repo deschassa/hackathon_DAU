@@ -76,7 +76,11 @@ npm run dev
 ---
 *Project built for the Hackin' DAU 2026 Hackathon. Inspired by the Alephium react-dapp-template and powered by Gemini.*
 
-#  Trustless Launchpad (Alephium Crowdfunding)
+
+
+
+
+#  Trustless Launchpad (Alephium Crowdfunding) -VF
 
 **Une plateforme communautaire d'investissement décentralisé et sécurisé sur la blockchain Alephium.**
 
