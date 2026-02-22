@@ -33,7 +33,7 @@ This project empowers the Alephium community to fund projects transparently, sec
 ##  Useful Links
 
 * **GitHub Repository:** [https://github.com/deschassa/hackathon_DAU](https://github.com/deschassa/hackathon_DAU)
-* **Contract Address (Testnet):** xRLgxuP211rUVprGbTdsJJtzSi6gcwLmKYCk2gER3CKq
+* **Contract Address (Testnet):** wGoaqeHvCUfN3tADuyHEQmfSVEejemGABRgggGAcqD4K
 * **Alephium Explorer:** [https://explorer.testnet.alephium.org/addresses/xRLgxuP211rUVprGbTdsJJtzSi6gcwLmKYCk2gER3CKq](https://explorer.testnet.alephium.org/addresses/xRLgxuP211rUVprGbTdsJJtzSi6gcwLmKYCk2gER3CKq)
 
 ---
@@ -44,13 +44,16 @@ The project is configured to interact with the Alephium **Testnet** network.
 
 **1. Clone the repository:**
 git clone [https://github.com/deschassa/hackathon_DAU.git](https://github.com/deschassa/hackathon_DAU.git)
-cd hackathon_DAU
+
+  cd hackathon_DAU
 
 **2. Install dependencies:**
-npm install
+
+  npm install
 
 **3. Compile Ralph smart contracts:**
-npx @alephium/cli@latest compile --network testnet
+
+  npx @alephium/cli@latest compile --network testnet
 
 **4. Run the frontend development server:**
 npm run dev
@@ -115,7 +118,7 @@ Ce projet permet à la communauté Alephium de financer des projets de manière 
 ##  Liens Utiles
 
 * **Dépôt GitHub :** [Voir le code source](https://github.com/deschassa/hackathon_DAU)
-* **Adresse du contrat (Testnet) :** `xRLgxuP211rUVprGbTdsJJtzSi6gcwLmKYCk2gER3CKq`
+* **Adresse du contrat (Testnet) :** `wGoaqeHvCUfN3tADuyHEQmfSVEejemGABRgggGAcqD4K`
 * **Explorateur Alephium :** [Voir le contrat sur l'Explorer](https://explorer.testnet.alephium.org/addresses/xRLgxuP211rUVprGbTdsJJtzSi6gcwLmKYCk2gER3CKq)
 * **Démo en ligne :** *(À venir)*
 
