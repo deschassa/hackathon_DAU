@@ -7,7 +7,8 @@ import { ForumSondage } from '../../../artifacts/ts'
 import { toast, Toaster } from 'react-hot-toast' 
 
 export const TokenDapp = () => {
-  const CONTRACT_ADDRESS = "zqpBh2xGVxsg7jYGki1DgScP5nC6DjuBQ9VpyBfqzhvw" 
+  // ⚠️ NOUVELLE ADRESSE À COLLER ICI APRÈS LE DÉPLOIEMENT
+  const CONTRACT_ADDRESS = "xrviY8ywDPJ2QZNfPfHBnPcC4zoGSB4T2eqNN6cBAhWf" 
   const contractGroup = groupOfAddress(CONTRACT_ADDRESS)
   const { signer, account } = useWallet() 
   
@@ -30,8 +31,11 @@ export const TokenDapp = () => {
   const [tempsActuel, setTempsActuel] = useState(Date.now())
   const [filtreActif, setFiltreActif] = useState('')   
   const [ongletActif, setOngletActif] = useState('en_cours') 
-  const [triActif, setTriActif] = useState('recent') // 🌟 NOUVEAU : Option de tri ('recent', 'fin_proche', 'plus_finances')
+  const [triActif, setTriActif] = useState('recent') 
   
+  // 🌟 NOUVEAU : État du profil investisseur
+  const [monProfil, setMonProfil] = useState({ nbVotes: 0, moyenne: 0, icone: '👤', titre: 'Nouvel Investisseur' })
+
   // 🌓 MODE SOMBRE
   const [isDarkMode, setIsDarkMode] = useState(false)
 
@@ -47,6 +51,8 @@ export const TokenDapp = () => {
     headerText: isDarkMode ? '#ccfbf1' : '#006064',
     headerBorder: isDarkMode ? '#115e59' : '#b2ebf2',
     infoBoxBg: isDarkMode ? '#374151' : '#f3f4f6',
+    profilBg: isDarkMode ? '#4c1d95' : '#ede9fe', // Nouvelle couleur pour le profil
+    profilText: isDarkMode ? '#ddd6fe' : '#5b21b6',
   }
 
   useEffect(() => {
@@ -59,6 +65,38 @@ export const TokenDapp = () => {
     const timer = setInterval(() => setTempsActuel(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [])
+
+  // 🌟 NOUVEAU : Fonction pour charger le profil du joueur/investisseur
+  const chargerProfil = async () => {
+    if (!account) return;
+    try {
+      const node = new NodeProvider('https://wallet-v20.testnet.alephium.org')
+      web3.setCurrentNodeProvider(node)
+      
+      const nbRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getProfilNbVotes({ args: { investisseur: account.address } })
+      const sommeRes = await ForumSondage.at(CONTRACT_ADDRESS).view.getProfilSommeNotes({ args: { investisseur: account.address } })
+      
+      const nbVotes = Number(nbRes.returns)
+      const sommeNotes = Number(sommeRes.returns)
+      
+      if (nbVotes > 0) {
+        const moyenne = sommeNotes / nbVotes
+        let icone = '⚖️'
+        let titre = 'Investisseur Neutre'
+        
+        if (moyenne >= 4.5) { icone = '👼'; titre = 'Ange Gardien' }
+        else if (moyenne < 3) { icone = '😈'; titre = 'Critique Sévère' }
+        
+        setMonProfil({ nbVotes, moyenne: moyenne.toFixed(1), icone, titre })
+      }
+    } catch (e) { console.log("Profil non trouvé", e) }
+  }
+
+  // On recharge les projets ET le profil au démarrage ou quand le compte change
+  useEffect(() => { 
+    chargerProjets(); 
+    chargerProfil(); 
+  }, [account])
 
   const chargerProjets = async () => {
     setChargement(true)
@@ -96,8 +134,6 @@ export const TokenDapp = () => {
     } catch (error) { toast.error("Erreur lors de la lecture des projets.") }
     setChargement(false)
   }
-
-  useEffect(() => { chargerProjets() }, [])
 
   // === FONCTIONS D'ÉCRITURE ===
   const publierProjet = async () => {
@@ -153,7 +189,7 @@ export const TokenDapp = () => {
       await ForumSondage.at(CONTRACT_ADDRESS).transact.retirerFonds({ signer: signer, args: { id: BigInt(projetId) }, attoAlphAmount: ONE_ALPH / 10n })
       toast.success(`🏆 SUCCÈS ! Les fonds ont été virés sur ton wallet !`, { id: toastId })
       setTimeout(chargerProjets, 3000)
-    } catch (e) { toast.error("Erreur : Créateur invalide ou conditions non remplies.", { id: toastId }) } 
+    } catch (e) { toast.error("Erreur : Créateur invalide ou conditions (Vote < 3/5) non remplies.", { id: toastId }) } 
     finally { setTxEnCours(false) }
   }
 
@@ -182,7 +218,7 @@ export const TokenDapp = () => {
     try {
       await ForumSondage.at(CONTRACT_ADDRESS).transact.voterPourPhaseDeux({ signer: signer, args: { id: BigInt(projetId), note: BigInt(note) }, attoAlphAmount: ONE_ALPH / 10n })
       toast.success(`⭐ Ton vote a été enregistré !`, { id: toastId })
-      setTimeout(chargerProjets, 3000)
+      setTimeout(() => { chargerProjets(); chargerProfil(); }, 3000) // On recharge aussi le profil !
     } catch (e) { toast.error("Erreur : Tu as déjà voté ou tu n'as pas investi.", { id: toastId }) } 
     finally { setTxEnCours(false) }
   }
@@ -197,7 +233,7 @@ export const TokenDapp = () => {
       await ForumSondage.at(CONTRACT_ADDRESS).transact.rembourser({ signer: signer, args: { id: BigInt(projetId) }, attoAlphAmount: ONE_ALPH / 10n })
       toast.success(`🛡️ REMBOURSÉ ! L'argent est de retour.`, { id: toastId })
       setTimeout(chargerProjets, 3000)
-    } catch (e) { toast.error("Erreur : Conditions de remboursement non remplies.", { id: toastId }) } 
+    } catch (e) { toast.error("Erreur : Le projet n'a pas échoué, n'est pas annulé, ou le vote est suffisant.", { id: toastId }) } 
     finally { setTxEnCours(false) }
   }
 
@@ -205,7 +241,6 @@ export const TokenDapp = () => {
   const tousLesTagsDisponibles = Array.from(new Set(projets.flatMap(p => p.hashtags ? p.hashtags.split(' ') : []))).filter(tag => tag.startsWith('#'))
   const projetsFiltresParTags = filtreActif ? projets.filter(p => p.hashtags && p.hashtags.includes(filtreActif)) : projets;
 
-  // 1. Filtrage par onglets
   let projetsAffiches = projetsFiltresParTags.filter(projet => {
     const estFini = Math.max(0, Math.floor((projet.deadline - tempsActuel) / 1000)) === 0;
     const objectifAtteint = projet.recolte >= projet.objectif;
@@ -216,16 +251,9 @@ export const TokenDapp = () => {
     return false;
   });
 
-  // 🌟 NOUVEAU : 2. Logique de Tri Dynamique
   projetsAffiches = projetsAffiches.sort((a, b) => {
-    if (triActif === 'fin_proche') {
-      return a.deadline - b.deadline; // Plus la deadline est petite, plus c'est proche
-    } else if (triActif === 'plus_finances') {
-      const pourcentageA = a.objectif > 0 ? (a.recolte / a.objectif) : 0;
-      const pourcentageB = b.objectif > 0 ? (b.recolte / b.objectif) : 0;
-      return pourcentageB - pourcentageA; // Ordre décroissant (le plus haut %)
-    }
-    // Par défaut (recent) : L'ID le plus grand (le dernier créé) en premier
+    if (triActif === 'fin_proche') return a.deadline - b.deadline; 
+    else if (triActif === 'plus_finances') return (b.recolte / (b.objectif || 1)) - (a.recolte / (a.objectif || 1));
     return b.id - a.id;
   });
 
@@ -242,12 +270,32 @@ export const TokenDapp = () => {
         </button>
       </div>
 
-      <div style={{ padding: '15px', background: theme.headerBg, color: theme.headerText, borderRadius: '8px', marginBottom: '20px', border: `1px solid ${theme.headerBorder}` }}>
-        <h3 style={{ margin: '0 0 10px 0' }}>🚀 Trustless Launchpad</h3>
-        <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '16px' }}>
-          <li>Univers du Contrat : <strong>Groupe {contractGroup}</strong></li>
-          <li>Univers de ton Wallet : <strong>Groupe {account ? account.group : 'Non connecté'}</strong></li>
-        </ul>
+      {/* 🌟 BANNIÈRE DU HAUT : INFO + GAMIFICATION */}
+      <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '20px' }}>
+        
+        {/* Info Système */}
+        <div style={{ flex: 2, padding: '15px', background: theme.headerBg, color: theme.headerText, borderRadius: '8px', border: `1px solid ${theme.headerBorder}` }}>
+          <h3 style={{ margin: '0 0 10px 0' }}>🚀 Trustless Launchpad</h3>
+          <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '16px' }}>
+            <li>Univers du Contrat : <strong>Groupe {contractGroup}</strong></li>
+            <li>Ton Wallet : <strong>{account ? `Groupe ${account.group}` : 'Non connecté'}</strong></li>
+          </ul>
+        </div>
+
+        {/* 🌟 NOUVEAU : Carte de Réputation (S'affiche si connecté) */}
+        {account && (
+          <div style={{ flex: 1, minWidth: '250px', padding: '15px', background: theme.profilBg, color: theme.profilText, borderRadius: '8px', border: `1px solid ${theme.profilText}`, textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <div style={{ fontSize: '30px', marginBottom: '5px' }}>{monProfil.icone}</div>
+            <strong style={{ fontSize: '18px' }}>{monProfil.titre}</strong>
+            <div style={{ marginTop: '8px', fontSize: '14px', opacity: 0.9 }}>
+              {monProfil.nbVotes > 0 ? (
+                <>Moyenne : <strong>{monProfil.moyenne} / 5</strong> (sur {monProfil.nbVotes} votes)</>
+              ) : (
+                <>Tu n'as pas encore voté.</>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* FORMULAIRE CRÉATION */}
@@ -283,7 +331,6 @@ export const TokenDapp = () => {
             <button onClick={() => setOngletActif('annules')} style={{ padding: '10px 20px', background: ongletActif === 'annules' ? '#ef4444' : 'transparent', color: ongletActif === 'annules' ? 'white' : theme.textMuted, border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>🚩 Annulés / Échoués</button>
           </div>
           
-          {/* 🌟 NOUVEAU : SELECTEUR DE TRI */}
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <span style={{ fontSize: '14px', fontWeight: 'bold', color: theme.text }}>Trier :</span>
             <select 
@@ -399,7 +446,8 @@ export const TokenDapp = () => {
                     <button disabled={txEnCours} onClick={() => annulerMonProjet(projet.id)} style={{ background: 'transparent', color: txEnCours ? '#9ca3af' : '#ef4444', padding: '8px 16px', border: `1px solid ${txEnCours ? '#9ca3af' : '#ef4444'}`, borderRadius: '4px', cursor: txEnCours ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold' }}>🚩 Créateur: Annuler le projet</button>
                   )}
 
-                  {(projet.estAnnule || (estFini && !objectifAtteint)) && (
+                  {(projet.estAnnule || (estFini && !objectifAtteint) || (projet.phaseRetrait === 1)) && (
+                    // On modifie l'affichage pour montrer que les investisseurs peuvent forcer le remboursement si échec
                     <button disabled={txEnCours} onClick={() => demanderRemboursement(projet.id)} style={{ background: txEnCours ? '#9ca3af' : '#ef4444', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: txEnCours ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>🛡️ Investisseur: Demander Remboursement</button>
                   )}
 
@@ -412,3 +460,4 @@ export const TokenDapp = () => {
     </div>
   )
 }
+
