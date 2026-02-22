@@ -1,5 +1,83 @@
 # 🚀 Trustless Launchpad (Alephium Crowdfunding)
 
+**A decentralized and secure community investment platform built on the Alephium blockchain.**
+
+Developed for the **Hackin' DAU 2026 Hackathon** (Track: Community).
+
+---
+
+## 🎯 The Project
+
+**Invest and raise funds simply, quickly, and without blind trust (Trustless).**
+
+This project empowers the Alephium community to fund projects transparently, securely, and without any intermediaries. Say goodbye to "Rug Pulls" or creators disappearing with the treasury: our smart contract protects investors through a milestone-based fund release system and automated refunds.
+
+### ⚡ Why Alephium?
+* **Security (sUTXO):** Bulletproof asset management thanks to the native sUTXO model. Funds are managed directly by the blockchain.
+* **Reliability (Ralph):** Smart contracts written in Ralph, leveraging the Asset Permission System (APS) to prevent common vulnerabilities by design.
+* **Performance:** Lightning-fast transactions with minimal fees, making it ideal for community micro-funding.
+
+---
+
+## 📈 Project Evolution (Hackathon Sprint)
+
+* **V1:** Simple on-chain forum and voting system.
+* **V2:** Pivot to a full Crowdfunding ecosystem with time management (TimeLocks).
+* **V3:** Integration of enriched metadata (GitHub, email) to build trust.
+* **V4:** Implementation of an **on-chain hashtag** system for dynamic project filtering.
+* **V5 (Security):** *Trustless Milestones* - Secure two-phase withdrawals (50% / 100%) unlocked by a weighted investor vote. Guaranteed refunds in case of project abandonment.
+* **V6 (UI/UX):** Fully redesigned dashboard with dynamic tabs, token-gating (private Discord access), on-chain reputation profiling, and native Dark Mode.
+
+---
+
+## 🔗 Useful Links
+
+* **GitHub Repository:** [https://github.com/deschassa/hackathon_DAU](https://github.com/deschassa/hackathon_DAU)
+* **Contract Address (Testnet):** xRLgxuP211rUVprGbTdsJJtzSi6gcwLmKYCk2gER3CKq
+* **Alephium Explorer:** [https://explorer.testnet.alephium.org/addresses/xRLgxuP211rUVprGbTdsJJtzSi6gcwLmKYCk2gER3CKq](https://explorer.testnet.alephium.org/addresses/xRLgxuP211rUVprGbTdsJJtzSi6gcwLmKYCk2gER3CKq)
+
+---
+
+## 💻 Setup & Local Launch
+
+The project is configured to interact with the Alephium **Testnet** network.
+
+**1. Clone the repository:**
+git clone [https://github.com/deschassa/hackathon_DAU.git](https://github.com/deschassa/hackathon_DAU.git)
+cd hackathon_DAU
+
+**2. Install dependencies:**
+npm install
+
+**3. Compile Ralph smart contracts:**
+npx @alephium/cli@latest compile --network testnet
+
+**4. Run the frontend development server:**
+npm run dev
+
+🌐 *The application will be available at:* http://localhost:3000
+
+---
+
+## 🏗️ Technical Architecture
+
+* **/contracts:** Core decentralized logic. Contains the Smart Contract written in Ralph (ForumSondage.ral).
+* **/src/app & /src/components:** Frontend user interface built with React/Next.js and connected to the blockchain via @alephium/web3-react.
+* **/scripts:** Automated deployment scripts for the Testnet network.
+* **/deployments:** Local storage tracking deployment history and deployed contract addresses.
+
+---
+
+## 👥 Team
+
+* **Fulgrim**: Web3 / Smart Contract Developer
+* **Mr_glace**: Web3 / Smart Contract Developer
+
+---
+*Project built for the Hackin' DAU 2026 Hackathon. Inspired by the Alephium react-dapp-template and powered by Gemini.*
+
+# 🚀 Trustless Launchpad (Alephium Crowdfunding)
+
 **Une plateforme communautaire d'investissement décentralisé et sécurisé sur la blockchain Alephium.**
 
 Développé dans le cadre du **Hackathon Hackin Dau 2026** (Track : Communauté).
