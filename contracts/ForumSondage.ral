@@ -9,6 +9,7 @@ Contract ForumSondage(
     mapping[U256, ByteVec] titres
     mapping[U256, ByteVec] descriptions 
     mapping[U256, ByteVec] liens        
+    mapping[U256, ByteVec] liensPrives      // 🔒 LE VOILÀ ! Le stockage du lien Discord
     mapping[U256, ByteVec] hashtags     
     mapping[U256, U256] objectifs
     mapping[U256, U256] fondsRecoltes
@@ -53,7 +54,6 @@ Contract ForumSondage(
         devCommentaires.insert!(caller, commentaire)
         devEmails.insert!(caller, email)
         
-        // Initialisation des jauges de réputation si c'est la première fois
         if (!devGlobalNotes.contains!(caller)) {
             devGlobalNotes.insert!(caller, 0)
             devGlobalPoids.insert!(caller, 0)
@@ -64,11 +64,12 @@ Contract ForumSondage(
     // ✍️ FONCTION 1 : CRÉATION DU PROJET
     // ==========================================
     @using(updateFields = true, checkExternalCaller = false, preapprovedAssets = true)
-    pub fn creerProjet(titre: ByteVec, description: ByteVec, liensProjet: ByteVec, tags: ByteVec, objectif: U256, dureeEnMs: U256) -> () {
+    pub fn creerProjet(titre: ByteVec, description: ByteVec, liensProjet: ByteVec, lienPrive: ByteVec, tags: ByteVec, objectif: U256, dureeEnMs: U256) -> () {
         let id = totalProjets
         titres.insert!(id, titre)
         descriptions.insert!(id, description)
         liens.insert!(id, liensProjet)
+        liensPrives.insert!(id, lienPrive) // 🔒 Enregistrement du lien privé
         hashtags.insert!(id, tags)
         objectifs.insert!(id, objectif)
         fondsRecoltes.insert!(id, 0) 
@@ -126,17 +127,14 @@ Contract ForumSondage(
         let poidsVote = montantInvesti * note
         let dev = createurs[id]
         
-        // 1. Mise à jour des stats du projet
         notesPonderees[id] = notesPonderees[id] + poidsVote
         fondsVotants[id] = fondsVotants[id] + montantInvesti 
         
-        // 2. Mise à jour de la réputation globale du Développeur (S'il a un profil)
         if (devGlobalNotes.contains!(dev)) {
             devGlobalNotes[dev] = devGlobalNotes[dev] + poidsVote
             devGlobalPoids[dev] = devGlobalPoids[dev] + montantInvesti
         }
         
-        // 3. Mise à jour du Profil de l'Investisseur
         if (profilNbVotes.contains!(caller)) {
             profilNbVotes[caller] = profilNbVotes[caller] + 1
             profilSommeNotes[caller] = profilSommeNotes[caller] + note
@@ -232,6 +230,8 @@ Contract ForumSondage(
     pub fn getPhaseRetrait(id: U256) -> U256 { return phasesRetrait[id] } 
     pub fn getFondsVotants(id: U256) -> U256 { return fondsVotants[id] } 
     pub fn getCreateur(id: U256) -> Address { return createurs[id] }
+    
+    pub fn getLienPrive(id: U256) -> ByteVec { return liensPrives[id] } // 🔒 LE VOILÀ !
 
     // --- Getters : Profil Investisseur ---
     pub fn getProfilNbVotes(investisseur: Address) -> U256 { 
@@ -258,6 +258,6 @@ Contract ForumSondage(
     }
     pub fn getDevReputation(dev: Address) -> (U256, U256) {
         if (devGlobalNotes.contains!(dev)) { return devGlobalNotes[dev], devGlobalPoids[dev] }
-        else { return 0, 0 } // Retourne (NotesTotales, QuorumTotal) pour calculer la moyenne côté React
+        else { return 0, 0 }
     }
 }
